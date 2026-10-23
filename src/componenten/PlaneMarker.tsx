@@ -19,7 +19,9 @@ const PlaneMarker = ({ id, position, icon, popup, open }: PlaneMarkerProps) => {
   const markerRef = useRef<LeafletMarker | null>(null);
   const animationRef = useRef<number | null>(null);
   const targetPosition = useRef<LatLngExpression>(position);
-  const [currentPosition, setCurrentPosition] = useState<LatLngExpression>(position);
+  // alleen de beginpositie gaat via react, daarna schuift leaflet de marker zelf.
+  // anders rendert elke marker elk beeldje opnieuw, en bij duizenden vliegtuigen wordt dat traag
+  const [currentPosition] = useState<LatLngExpression>(position);
 
   //! effect voor smooth animatie van vliegtuig marker met interpolatie
   useEffect(() => {
@@ -42,7 +44,6 @@ const PlaneMarker = ({ id, position, icon, popup, open }: PlaneMarkerProps) => {
 
       const newLatLng = latLng(lat, lng);
       markerRef.current.setLatLng(newLatLng);
-      setCurrentPosition([lat, lng]); // update interne positie
 
       if (currentLatLng.distanceTo(targetLatLng) > 0.0001) {
         animationRef.current = requestAnimationFrame(animate);

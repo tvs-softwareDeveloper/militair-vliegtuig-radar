@@ -9,9 +9,31 @@ type Props = {
   kies: (id: string) => void;
   verbonden: boolean;
   laatsteUpdate: Date | null;
+  straal: number; //! km rond het middelpunt
+  setStraal: (km: number) => void;
+  rondNederland: boolean;
+  gebruikKaartMidden: () => void;
+  terugNaarNederland: () => void;
+  seconden: number; //! hoe vaak de server ververst
+  bezig: boolean;
 };
 
-const StatusPanel = ({ planes, filter, setFilter, gekozenId, kies, verbonden, laatsteUpdate }: Props) => {
+const StatusPanel = ({
+  planes,
+  filter,
+  setFilter,
+  gekozenId,
+  kies,
+  verbonden,
+  laatsteUpdate,
+  straal,
+  setStraal,
+  rondNederland,
+  gebruikKaartMidden,
+  terugNaarNederland,
+  seconden,
+  bezig,
+}: Props) => {
   const inDeLucht = planes.filter((p) => !p[8]);
   const perNiveau = NIVEAUS.map(({ niveau }) => planes.filter((p) => niveauVan(p) === niveau).length);
 
@@ -22,7 +44,7 @@ const StatusPanel = ({ planes, filter, setFilter, gekozenId, kies, verbonden, la
     .slice(0, 8);
 
   return (
-    <aside className="flex flex-col gap-5 border-slate-800 bg-slate-950 p-5 text-slate-200 md:h-full md:w-80 md:shrink-0 md:overflow-hidden md:border-r">
+    <aside className="flex flex-col gap-5 border-slate-800 bg-slate-950 p-5 text-slate-200 md:h-full md:w-80 md:shrink-0 md:overflow-y-auto md:border-r">
       {/* titel met een radarstraal die rustig rondgaat */}
       <header className="flex items-center gap-3">
         <div className="radar relative h-11 w-11 shrink-0 rounded-full border border-emerald-500/50" aria-hidden="true">
@@ -31,7 +53,9 @@ const StatusPanel = ({ planes, filter, setFilter, gekozenId, kies, verbonden, la
         </div>
         <div>
           <h1 className="text-xl font-bold tracking-tight text-white">Vliegtuigradar</h1>
-          <p className="text-xs text-slate-400">Luchtruim boven Nederland</p>
+          <p className="text-xs text-slate-400">
+            Live luchtruim · {straal} km {rondNederland ? "rond Nederland" : "rond eigen punt"}
+          </p>
         </div>
       </header>
 
@@ -47,9 +71,51 @@ const StatusPanel = ({ planes, filter, setFilter, gekozenId, kies, verbonden, la
         </div>
         <p className="col-span-2 flex items-center gap-2 text-xs text-slate-400">
           <span className={`h-2 w-2 rounded-full ${verbonden ? "bg-emerald-400 live" : "bg-red-500"}`} />
-          {verbonden ? "Live" : "Geen verbinding"}
-          {laatsteUpdate && <span className="font-mono">· {laatsteUpdate.toLocaleTimeString("nl-NL")}</span>}
+          {bezig ? "Nieuw gebied laden…" : verbonden ? "Live" : "Geen verbinding"}
+          {laatsteUpdate && !bezig && <span className="font-mono">· {laatsteUpdate.toLocaleTimeString("nl-NL")}</span>}
         </p>
+      </section>
+
+      {/* bereik: een straal rond nederland, of rond het midden van de kaart */}
+      <section>
+        <div className="mb-2 flex items-baseline justify-between">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Bereik</h2>
+          <span className="font-mono text-sm text-white">{straal} km</span>
+        </div>
+        <input
+          type="range"
+          min={25}
+          max={1000}
+          step={25}
+          value={straal}
+          onChange={(e) => setStraal(Number(e.target.value))}
+          aria-label="Straal in kilometer"
+          className="w-full accent-emerald-400"
+        />
+        <div className="mt-1 flex justify-between font-mono text-[10px] text-slate-500">
+          <span>25</span>
+          <span>500</span>
+          <span>1000 km</span>
+        </div>
+        <p className="mt-2 text-xs text-slate-400">
+          Rond {rondNederland ? "het midden van Nederland" : "een eigen punt"} · elke {seconden} s ververst
+        </p>
+        <div className="mt-2 flex gap-2">
+          <button
+            onClick={gebruikKaartMidden}
+            className="flex-1 rounded-md border border-slate-700 px-2 py-1.5 text-xs text-slate-200 transition hover:bg-slate-900"
+          >
+            Midden van de kaart
+          </button>
+          {!rondNederland && (
+            <button
+              onClick={terugNaarNederland}
+              className="rounded-md border border-slate-700 px-2 py-1.5 text-xs text-slate-200 transition hover:bg-slate-900"
+            >
+              Nederland
+            </button>
+          )}
+        </div>
       </section>
 
       {/* tellers per niveau, meteen ook het filter */}
@@ -113,8 +179,9 @@ const StatusPanel = ({ planes, filter, setFilter, gekozenId, kies, verbonden, la
       </section>
 
       <p className="shrink-0 border-t border-slate-800 pt-3 text-[11px] leading-relaxed text-slate-500">
-        Live posities van het OpenSky Network, elke 30 seconden ververst. "Verdacht" is een eigen inschatting op basis
-        van snelheid, hoogte, koers, transponder en noodsignaal.
+        Live posities van het OpenSky Network. Hoe groter het bereik, hoe minder vaak er ververst wordt: zonder account
+        is er per dag een beperkt tegoed. "Verdacht" is een eigen inschatting op basis van snelheid, hoogte, koers,
+        transponder en noodsignaal.
       </p>
     </aside>
   );

@@ -1,22 +1,23 @@
-import { useEffect } from "react";
-import { MapContainer, TileLayer, Popup, Rectangle, ZoomControl, useMap } from "react-leaflet";
-import { LatLngBoundsExpression, LatLngExpression } from "leaflet";
+import { useEffect, useRef } from "react";
+import { MapContainer, TileLayer, Popup, Circle, ZoomControl, useMap, useMapEvents } from "react-leaflet";
+import L, { LatLngExpression } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import PlaneMarker from "./componenten/PlaneMarker";
 import PlanePopup from "./componenten/PlanePopup";
 import { vliegtuigIcon } from "./componenten/planeIcons";
 import { niveauVan } from "./dreiging";
-
-//! het gebied waar de server vliegtuigen voor ophaalt (lat 50-54, lon 3-8)
-const BEWAAKT: LatLngBoundsExpression = [
-  [50, 3],
-  [54, 8],
-];
+import type { Punt } from "./App";
 
 type Props = {
   planes: any[]; //! array van vliegtuig data
   gekozenId: string | null; //! vliegtuig dat in de lijst is aangeklikt
+  midden: Punt; //! middelpunt van het bekeken gebied
+  straal: number; //! straal in km
+  onKaartMidden: (punt: Punt) => void; //! het midden van de kaart, voor de knop in het paneel
 };
+
+//! het vak om de cirkel, om de kaart op in te zoomen
+const vakVan = (midden: Punt, straal: number) => L.latLng(midden[0], midden[1]).toBounds(straal * 2000);
 
 //! vliegt naar het gekozen vliegtuig
 const NaarGekozen = ({ plane }: { plane: any | undefined }) => {
@@ -27,13 +28,38 @@ const NaarGekozen = ({ plane }: { plane: any | undefined }) => {
   return null;
 };
 
+//! zoomt mee als de straal of het middelpunt verandert (niet bij de eerste keer, dan staat hij al goed)
+const VolgGebied = ({ midden, straal }: { midden: Punt; straal: number }) => {
+  const map = useMap();
+  const eersteKeer = useRef(true);
+  useEffect(() => {
+    if (eersteKeer.current) {
+      eersteKeer.current = false;
+      return;
+    }
+    map.flyToBounds(vakVan(midden, straal), { padding: [24, 24], duration: 0.6 });
+  }, [midden, straal]);
+  return null;
+};
+
+//! geeft het midden van de kaart door na slepen of zoomen
+const MeldMidden = ({ onKaartMidden }: { onKaartMidden: Props["onKaartMidden"] }) => {
+  useMapEvents({
+    moveend: (event) => {
+      const c = event.target.getCenter();
+      onKaartMidden([c.lat, c.lng]);
+    },
+  });
+  return null;
+};
+
 //! MapDashboard component toont de kaart met vliegtuig markers
-const MapDashboard = ({ planes, gekozenId }: Props) => {
+const MapDashboard = ({ planes, gekozenId, midden, straal, onKaartMidden }: Props) => {
   const gekozen = planes.find((p) => p[0] === gekozenId);
 
   return (
     <MapContainer
-      bounds={BEWAAKT}
+      bounds={vakVan(midden, straal)}
       boundsOptions={{ padding: [24, 24] }}
       zoomControl={false}
       className="h-full w-full"
@@ -50,9 +76,11 @@ const MapDashboard = ({ planes, gekozenId }: Props) => {
         url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}"
         maxZoom={16}
       />
-      <Rectangle
-        bounds={BEWAAKT}
-        pathOptions={{ color: "#34d399", weight: 1, opacity: 0.5, fill: false, dashArray: "6 6" }}
+      {/* het bekeken gebied */}
+      <Circle
+        center={midden}
+        radius={straal * 1000}
+        pathOptions={{ color: "#34d399", weight: 1, opacity: 0.6, fillColor: "#34d399", fillOpacity: 0.03, dashArray: "6 6", interactive: false }}
       />
 
       {planes.map((p) => {
@@ -76,6 +104,8 @@ const MapDashboard = ({ planes, gekozenId }: Props) => {
 
       <ZoomControl position="bottomright" />
       <NaarGekozen plane={gekozen} />
+      <VolgGebied midden={midden} straal={straal} />
+      <MeldMidden onKaartMidden={onKaartMidden} />
     </MapContainer>
   );
 };
