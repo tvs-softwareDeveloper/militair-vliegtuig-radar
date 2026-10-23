@@ -1,96 +1,83 @@
-import { MapContainer, TileLayer, Popup } from "react-leaflet";
-import { LatLngExpression } from "leaflet";
+import { useEffect } from "react";
+import { MapContainer, TileLayer, Popup, Rectangle, ZoomControl, useMap } from "react-leaflet";
+import { LatLngBoundsExpression, LatLngExpression } from "leaflet";
 import "leaflet/dist/leaflet.css";
-import {
-  isSuspicious,
-  getSpeedInKmH,
-  getSuspicionReasons,
-} from "../utils/planeUtils";
-import L from "leaflet";
-import planeIconUrl from "./assets/plane.png";
-import redPlaneUrl from "./assets/redplane.png";
 import PlaneMarker from "./componenten/PlaneMarker";
-import bluePlaneUrl from "./assets/blauweplane.png";
-import orangePlaneUrl from "./assets/orangeplane.png";
-import blackPlaneUrl from "./assets/blackplane.png";
-import {redPlane, planeIcon, bluePlane, orangePlane, blackPlane} from "./componenten/planeIcons";
+import PlanePopup from "./componenten/PlanePopup";
+import { vliegtuigIcon } from "./componenten/planeIcons";
+import { niveauVan } from "./dreiging";
 
-const centerPosition: LatLngExpression = [52, 5];
-//! icons
+//! het gebied waar de server vliegtuigen voor ophaalt (lat 50-54, lon 3-8)
+const BEWAAKT: LatLngBoundsExpression = [
+  [50, 3],
+  [54, 8],
+];
 
-//////!
-//! planes worden in props meegegeven
 type Props = {
   planes: any[]; //! array van vliegtuig data
+  gekozenId: string | null; //! vliegtuig dat in de lijst is aangeklikt
 };
 
-//!icon toewijzen op basis van aantal redenen voor verdachte activiteit per vliegtuig
-const getPlaneIconBySuspicion = (reasonsCount: number): L.Icon => {
-  if (reasonsCount === 0) return planeIcon;
-  if (reasonsCount === 1) return bluePlane;
-  if (reasonsCount === 2) return orangePlane;
-  if (reasonsCount >= 4) return blackPlane;
-  if (reasonsCount === 3) return redPlane;
-  return planeIcon;
+//! vliegt naar het gekozen vliegtuig
+const NaarGekozen = ({ plane }: { plane: any | undefined }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (plane) map.flyTo([plane[6], plane[5]], Math.max(map.getZoom(), 9), { duration: 0.8 });
+  }, [plane?.[0]]);
+  return null;
 };
 
 //! MapDashboard component toont de kaart met vliegtuig markers
-const MapDashboard = ({ planes }: Props) => {
+const MapDashboard = ({ planes, gekozenId }: Props) => {
+  const gekozen = planes.find((p) => p[0] === gekozenId);
+
   return (
-    //? kaart word getoont met react leaflet
-    <div className="h-[900px] w-full">
-      <MapContainer center={centerPosition} zoom={6} className="h-full w-full">
-        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-        //? kaart word getoont met react leaflet
-        {planes.map((p) => {// voor elk vliegtuig in de array en data word gezet in p
-          const reasons = getSuspicionReasons(p);
-          return p[5] && p[6] ? (
-            <PlaneMarker
-              key={p[0]}
-              id={p[0]}
-              position={[p[6], p[5]] as LatLngExpression}
-              //? icon op basis van verdachte activiteit
-              icon={getPlaneIconBySuspicion(reasons.length)}// wijst icon toe
-              popup={
-                <Popup>
-                  <strong>Callsign:</strong> {p[1] || "Onbekend"}
-                  <br />
-                  <strong>Land:</strong> {p[2]}
-                  <br />
-                  <strong>Hoogte:</strong> {p[13]} m<br />
-                  <strong>Snelheid:</strong> {getSpeedInKmH(p[9]).toFixed(1)}{" "}
-                  km/u
-                  <br />
-                  <strong>Richting:</strong> {p[10]}°<br />
-                  <strong>Verticale snelheid:</strong> {p[11]} m/s
-                  <br />
-                  <strong>Squawk:</strong> {p[14] || "Geen"}
-                  <br />
-                  <strong>SPI/Noodsignaal:</strong> {p[15] ? "JA" : "NEE"}
-                  <br />
-                  <strong>Grondstatus:</strong>{" "}
-                  {p[8] ? "Op de grond" : "In de lucht"}
-                  <br />
-                  {reasons.length > 0 && (
-                    <>
-                      <strong>Verdacht gedrag:</strong>
-                      <ul>
-                        {reasons.map((r, i) => (
-                          <li key={i}>{r}</li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                </Popup>
-              }
-            />
-          ) : null;
-        })}
-      </MapContainer>
-    </div>
+    <MapContainer
+      bounds={BEWAAKT}
+      boundsOptions={{ padding: [24, 24] }}
+      zoomControl={false}
+      className="h-full w-full"
+      preferCanvas
+    >
+      {/* donkere kaart (esri, geen sleutel nodig), past bij een radar en laat de gekleurde vliegtuigen opvallen */}
+      <TileLayer
+        url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}"
+        maxZoom={16}
+        attribution="Kaart &copy; Esri, HERE, Garmin, &copy; OpenStreetMap · data: OpenSky Network"
+      />
+      {/* plaatsnamen als losse laag erboven */}
+      <TileLayer
+        url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}"
+        maxZoom={16}
+      />
+      <Rectangle
+        bounds={BEWAAKT}
+        pathOptions={{ color: "#34d399", weight: 1, opacity: 0.5, fill: false, dashArray: "6 6" }}
+      />
+
+      {planes.map((p) => {
+        if (typeof p[5] !== "number" || typeof p[6] !== "number") return null;
+        return (
+          <PlaneMarker
+            key={p[0]}
+            id={p[0]}
+            position={[p[6], p[5]] as LatLngExpression}
+            //? kleur op basis van verdachte activiteit, gedraaid naar de koers
+            icon={vliegtuigIcon(niveauVan(p), p[10], p[0] === gekozenId)}
+            open={p[0] === gekozenId}
+            popup={
+              <Popup className="radar-popup" closeButton={false}>
+                <PlanePopup plane={p} />
+              </Popup>
+            }
+          />
+        );
+      })}
+
+      <ZoomControl position="bottomright" />
+      <NaarGekozen plane={gekozen} />
+    </MapContainer>
   );
 };
 
 export default MapDashboard;
-
-

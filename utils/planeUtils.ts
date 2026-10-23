@@ -1,34 +1,5 @@
-export const isSuspicious = (plane: any) => {
-  const [
-    icao,
-    callsign,
-    originCountry,
-    timePosition,
-    lastContact,
-    lon,
-    lat,
-    baroAltitude,
-    onGround,
-    velocity,
-    trueTrack,
-    verticalRate,
-    sensors,
-    geoAltitude,
-    squawk,
-    spi,
-    positionSource,
-  ] = plane;
-
-  return (
-    !onGround && //checkt of vliegtuig in de lucht is
-    (velocity > 950 || // controle op hoge snelheid
-      (!callsign && !squawk) || // controlle op anoniem vliegtuig
-      (geoAltitude !== null && geoAltitude < 1000) || // controle of vliegtuig vliegt lage hoogte
-      spi === true || // SPI-flag actief
-      (trueTrack !== null && (trueTrack <= 20 || trueTrack >= 160)) || // conrtole of vliegtuig richting binnenland vliegt
-      (verticalRate !== null && Math.abs(verticalRate) > 15)) // controle op snelle stijging of daling
-  );
-};
+//! een vliegtuig is verdacht als er minstens 1 reden is, zo gebruiken kaart en lijst dezelfde regels
+export const isSuspicious = (plane: any) => getSuspicionReasons(plane).length > 0;
 
 //rekent snelheid in km/u en in knots
 export const getSpeedInKmH = (velocity: number) => velocity * 3.6;

@@ -1,3 +1,112 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+body {
+  @apply bg-slate-950 font-sans antialiased;
+}
+
+/* de kaart zelf ook donker, anders flitst er wit voordat de tegels er zijn */
+.leaflet-container {
+  @apply bg-slate-950 font-sans;
+}
+
+.leaflet-control-attribution {
+  @apply !bg-slate-950/80 !text-slate-500;
+}
+.leaflet-control-attribution a {
+  @apply !text-slate-400;
+}
+
+.leaflet-bar a {
+  @apply !border-slate-700 !bg-slate-900 !text-slate-200 hover:!bg-slate-800;
+}
+
+/* popup in de stijl van het paneel */
+.radar-popup .leaflet-popup-content-wrapper {
+  @apply rounded-lg border border-slate-700 bg-slate-900/95 text-slate-200 shadow-2xl backdrop-blur;
+}
+.radar-popup .leaflet-popup-content {
+  @apply m-4;
+}
+/* leaflet zet zelf ruime marges op alinea's in een popup */
+.radar-popup .leaflet-popup-content p {
+  margin: 0;
+}
+.radar-popup .leaflet-popup-tip {
+  @apply border border-slate-700 bg-slate-900;
+}
+
+/* vliegtuig op de kaart */
+.vliegtuig {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  filter: drop-shadow(0 0 3px rgb(0 0 0 / 0.8));
+}
+.vliegtuig svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* 3 of meer redenen: een ring die zacht uitdijt */
+.vliegtuig--alarm::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border: 2px solid var(--kleur);
+  border-radius: 50%;
+  animation: puls 1.8s ease-out infinite;
+}
+
+/* in de lijst gekozen */
+.vliegtuig--gekozen::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  border: 1.5px solid #fff;
+  border-radius: 50%;
+}
+
+@keyframes puls {
+  from {
+    transform: scale(0.8);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+/* radarstraal in de titel */
+.radar-straal {
+  background: conic-gradient(from 0deg, rgb(52 211 153 / 0.55), transparent 70deg);
+  animation: draai 4s linear infinite;
+}
+
+@keyframes draai {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* het live-lampje */
+.live {
+  animation: knipper 2s ease-in-out infinite;
+}
+
+@keyframes knipper {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* minder beweging: alles staat stil, de informatie blijft */
+@media (prefers-reduced-motion: reduce) {
+  .vliegtuig--alarm::before,
+  .radar-straal,
+  .live {
+    animation: none;
+  }
+}

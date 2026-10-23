@@ -6,15 +6,16 @@ import L, { LatLngExpression, Marker as LeafletMarker, latLng } from "leaflet";
 type PlaneMarkerProps = {
   id: string;
   position: LatLngExpression;
-  icon: L.Icon;
+  icon: L.Icon | L.DivIcon;
   popup?: React.ReactNode;
+  open?: boolean; // gekozen in de lijst: popup meteen openen
 };
 
 // lineaire interpolatie functie voor soepele animatie
 const lerp = (start: number, end: number, t: number) =>
   start + (end - start) * t;
 
-const PlaneMarker = ({ id, position, icon, popup }: PlaneMarkerProps) => {
+const PlaneMarker = ({ id, position, icon, popup, open }: PlaneMarkerProps) => {
   const markerRef = useRef<LeafletMarker | null>(null);
   const animationRef = useRef<number | null>(null);
   const targetPosition = useRef<LatLngExpression>(position);
@@ -54,6 +55,11 @@ const PlaneMarker = ({ id, position, icon, popup }: PlaneMarkerProps) => {
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
   }, [position]);
+
+  //! popup openen als dit vliegtuig in de lijst gekozen is
+  useEffect(() => {
+    if (open) markerRef.current?.openPopup();
+  }, [open]);
 
   //! marker component met interpolatie animatie wordt gerenderd
   return (
