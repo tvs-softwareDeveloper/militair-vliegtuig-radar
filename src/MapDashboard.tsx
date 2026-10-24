@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { MapContainer, TileLayer, Popup, Circle, ZoomControl, useMap, useMapEvents } from "react-leaflet";
 import L, { LatLngExpression } from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -19,6 +19,34 @@ type Props = {
 //! het vak om de cirkel, om de kaart op in te zoomen
 const vakVan = (midden: Punt, straal: number) => L.latLng(midden[0], midden[1]).toBounds(straal * 2000);
 
+//! de ruimte in pixels die om het gebied heen blijft, tegelijk het minimum dat de kaart nodig heeft om erop in te zoomen
+const MARGE = 24;
+
+//! een kaart die start zonder ruimte (achtergrondtab, venster dat nog groeit) blijft kapot: Leaflet zoomt dan naar Infinity,
+//! daarna geven flyToBounds en invalidateSize NaN en wordt de hele pagina leeg. daarom bouwen we de kaart pas als het vak ruimte heeft
+const WachtOpRuimte = ({ children }: { children: ReactNode }) => {
+  const vak = useRef<HTMLDivElement>(null);
+  const [heeftRuimte, setHeeftRuimte] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = vak.current;
+    if (heeftRuimte || !el) return;
+    const meet = () => {
+      if (el.clientWidth > 2 * MARGE && el.clientHeight > 2 * MARGE) setHeeftRuimte(true);
+    };
+    const waker = new ResizeObserver(meet);
+    waker.observe(el);
+    meet();
+    return () => waker.disconnect();
+  }, [heeftRuimte]);
+
+  return (
+    <div ref={vak} className="h-full w-full">
+      {heeftRuimte && children}
+    </div>
+  );
+};
+
 //! vliegt naar het gekozen vliegtuig
 const NaarGekozen = ({ plane }: { plane: any | undefined }) => {
   const map = useMap();
@@ -28,16 +56,15 @@ const NaarGekozen = ({ plane }: { plane: any | undefined }) => {
   return null;
 };
 
-//! zoomt mee als de straal of het middelpunt verandert (niet bij de eerste keer, dan staat hij al goed)
+//! zoomt mee als de straal of het middelpunt verandert (niet bij het starten, dan staat hij al goed).
+//! we onthouden het gebied waarop de kaart staat in plaats van "de eerste keer": StrictMode draait een effect bij het starten twee keer
 const VolgGebied = ({ midden, straal }: { midden: Punt; straal: number }) => {
   const map = useMap();
-  const eersteKeer = useRef(true);
+  const staatOp = useRef({ midden, straal });
   useEffect(() => {
-    if (eersteKeer.current) {
-      eersteKeer.current = false;
-      return;
-    }
-    map.flyToBounds(vakVan(midden, straal), { padding: [24, 24], duration: 0.6 });
+    if (staatOp.current.midden === midden && staatOp.current.straal === straal) return;
+    staatOp.current = { midden, straal };
+    map.flyToBounds(vakVan(midden, straal), { padding: [MARGE, MARGE], duration: 0.6 });
   }, [midden, straal]);
   return null;
 };
@@ -53,14 +80,14 @@ const MeldMidden = ({ onKaartMidden }: { onKaartMidden: Props["onKaartMidden"] }
   return null;
 };
 
-//! MapDashboard component toont de kaart met vliegtuig markers
-const MapDashboard = ({ planes, gekozenId, midden, straal, onKaartMidden }: Props) => {
+//! Kaart toont de kaart met vliegtuig markers
+const Kaart = ({ planes, gekozenId, midden, straal, onKaartMidden }: Props) => {
   const gekozen = planes.find((p) => p[0] === gekozenId);
 
   return (
     <MapContainer
       bounds={vakVan(midden, straal)}
-      boundsOptions={{ padding: [24, 24] }}
+      boundsOptions={{ padding: [MARGE, MARGE] }}
       zoomControl={false}
       className="h-full w-full"
       preferCanvas
@@ -109,5 +136,12 @@ const MapDashboard = ({ planes, gekozenId, midden, straal, onKaartMidden }: Prop
     </MapContainer>
   );
 };
+
+//! MapDashboard bouwt de kaart pas als er ruimte voor is, zie WachtOpRuimte
+const MapDashboard = (props: Props) => (
+  <WachtOpRuimte>
+    <Kaart {...props} />
+  </WachtOpRuimte>
+);
 
 export default MapDashboard;
