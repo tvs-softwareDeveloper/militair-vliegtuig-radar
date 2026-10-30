@@ -1,3 +1,5 @@
+import { meting } from "./meting";
+
 //! een vliegtuig is verdacht als er minstens 1 reden is, zo gebruiken kaart en lijst dezelfde regels
 export const isSuspicious = (plane: any) => getSuspicionReasons(plane).length > 0;
 
@@ -27,6 +29,7 @@ export const getSuspicionReasons = (plane: any): string[] => {
     positionSource,
   ] = plane;
 
+  meting.redenenAanroepen++; //! voor de meter: hoe vaak de regels per pakket draaien
   const reasons: string[] = [];
   //reasons voor verdachte activiteit
   if (onGround) return reasons; // alleen vliegtuigen in de lucht returnen reasons

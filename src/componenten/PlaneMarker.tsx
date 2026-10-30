@@ -1,3 +1,5 @@
+//! OUD: niet meer gebruikt sinds alle vliegtuigen op één canvas staan (vliegtuigCanvas.ts + VliegtuigLaag.tsx).
+//! blijft bewaard als terugval: één marker per vliegtuig werd bij duizenden vliegtuigen te traag
 import { useEffect, useRef, useState } from "react";
 import { Marker } from "react-leaflet";
 import L, { LatLngExpression, Marker as LeafletMarker, latLng } from "leaflet";

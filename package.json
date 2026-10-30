@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "server": "node dev-server.mjs",
+    "server:nep": "node dev-server.mjs --nep 5000",
     "dev": "vite --open"
   },
   "dependencies": {

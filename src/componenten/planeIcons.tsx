@@ -1,3 +1,5 @@
+//! OUD: niet meer gebruikt sinds alle vliegtuigen op één canvas staan; vliegtuigCanvas.ts tekent dezelfde vorm en kleuren zelf.
+//! blijft bewaard als terugval, samen met PlaneMarker.tsx
 import L from "leaflet";
 import { kleurVan, Niveau } from "../dreiging";
 

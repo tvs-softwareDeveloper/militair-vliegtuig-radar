@@ -38,6 +38,7 @@ Stoppen doe je met `Ctrl+C` in beide terminals.
 ## Gebruik
 
 - **Bereik:** met de schuif in het paneel kies je de straal, van 25 tot 1000 km. Standaard is dat 250 km rond het midden van Nederland. Met **Midden van de kaart** wordt het midden van de kaart het nieuwe middelpunt, en **Nederland** zet het terug.
+- **Verversen:** kies **Zuinig**, **Normaal** of **Snel**. Dat bepaalt hoe vaak de server nieuwe posities ophaalt. Onder de knoppen staat hoeveel OpenSky-tegoed dat per uur kost en hoe lang het tegoed nog meegaat (zie [OpenSky-tegoed](#opensky-tegoed-en-verversen)). Je keuze wordt in de browser onthouden. Tussen twee verversingen door vliegen de vliegtuigen op hun snelheid en koers verder, dus ook op Zuinig bewegen ze over de kaart.
 - **Dreigingsniveau:** de vijf niveaus zijn ook filters. Klik op een niveau om alleen die vliegtuigen te zien, en klik nog een keer om alles weer te tonen.
 - **Meest verdacht:** klik op een vliegtuig in de lijst. De kaart vliegt er dan naartoe en opent de gegevens.
 - **Vliegtuig op de kaart:** klik erop voor hoogte, snelheid, koers, verticale snelheid, squawk, noodsignaal en de redenen waarom het als verdacht telt.
@@ -50,18 +51,36 @@ Stoppen doe je met `Ctrl+C` in beide terminals.
 | Rood | 3 redenen (met een pulserende ring) |
 | Paars | 4 of meer redenen |
 
-## OpenSky-tegoed
+## OpenSky-tegoed en verversen
 
-De server gebruikt OpenSky zonder account. Dan krijg je ongeveer 400 punten per dag, en een groter gebied kost meer punten per aanvraag. Daarom ververst de server een groter gebied minder vaak:
+OpenSky werkt met tegoed. Elke aanvraag kost 1 tot 4 punten: hoe groter het gebied, hoe meer.
 
-| Bereik | Ververst elke |
-|---|---|
-| tot ongeveer 150 km | 30 seconden |
-| ongeveer 250 km | 60 seconden |
-| ongeveer 600 km | 90 seconden |
-| ongeveer 1000 km | 120 seconden |
+| | Tegoed per dag | Nieuwe data elke |
+|---|---|---|
+| Zonder account | 400 | 10 s |
+| Met een gratis account | 4.000 | 5 s |
 
-Is het tegoed op, dan blijven de laatste vliegtuigen staan en meldt de server dat in de terminal. Met een gratis OpenSky-account is het tegoed groter. `services/openskyClient.ts` kan al inloggen met `OPENSKY_CLIENT_ID` en `OPENSKY_CLIENT_SECRET`, maar de server gebruikt dat nog niet.
+De stand bij **Verversen** is een budget in tegoed per uur, dus een groter gebied ververst vanzelf minder vaak:
+
+| Stand | Tegoed per uur | tot ±200 km | 250 km | 600 km | 1000 km |
+|---|---|---|---|---|---|
+| Zuinig | 120 | 30 s | 60 s | 90 s | 120 s |
+| Normaal | 360 | 10 s | 20 s | 30 s | 40 s |
+| Snel | zo veel als nodig | 10 s (5 s met account) | 10 s (5 s) | 10 s (5 s) | 10 s (5 s) |
+
+- **Hoe lang je het volhoudt:** zonder account houd je het met Zuinig ruim 3 uur per dag vol, met Normaal ruim een uur.
+- **Standaardstand:** zonder account Zuinig, met account Normaal.
+- **Tegoed op:** dan blijven de laatste vliegtuigen staan, toont het paneel wanneer er weer nieuwe posities komen, en wacht de server tot OpenSky dat toestaat. In de terminal staat bij elke aanvraag hoeveel tegoed er nog over is.
+
+### Met een OpenSky-account
+
+Alleen de server logt in bij OpenSky. Wie de radar bekijkt, logt nooit in.
+
+1. Maak een gratis account op [opensky-network.org](https://opensky-network.org) en maak onder **Account** een **API Client** aan. Je krijgt een client id en een client secret.
+2. Kopieer `.env.example` naar `.env` (in dezelfde map) en vul `OPENSKY_CLIENT_ID` en `OPENSKY_CLIENT_SECRET` in. `.env` staat in `.gitignore` en gaat dus niet mee naar GitHub.
+3. Start de server opnieuw. In de terminal staat dan `opensky: with the api client from .env`.
+
+Hiervoor is Node.js 20.12 of nieuwer nodig. Klopt de key niet, dan meldt de server dat en werkt hij gewoon anoniem verder.
 
 ## Mappen en bestanden
 

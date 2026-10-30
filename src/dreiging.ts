@@ -11,6 +11,19 @@ export const NIVEAUS: { niveau: Niveau; naam: string; kleur: string }[] = [
   { niveau: 4, naam: "4+ redenen", kleur: "#d946ef" },
 ];
 
+//! de beoordeling van één vliegtuig: de redenen en het niveau dat daaruit volgt.
+//! App rekent dit één keer per pakket uit (een Map van icao naar beoordeling), kaart, filter, tellers en lijst lezen het daarna alleen nog
+export type Beoordeling = { redenen: string[]; niveau: Niveau };
+
+export const beoordeel = (plane: any): Beoordeling => {
+  const redenen = getSuspicionReasons(plane);
+  return { redenen, niveau: Math.min(redenen.length, 4) as Niveau };
+};
+
+//! voor een vliegtuig dat (nog) niet in de Map staat: niets verdachts
+export const GEEN_BEOORDELING: Beoordeling = { redenen: [], niveau: 0 };
+
+//! rekent bij elke aanroep de regels opnieuw uit, dus niet meer in de render gebruiken: gebruik de Map met beoordelingen uit App
 export const niveauVan = (plane: any): Niveau =>
   Math.min(getSuspicionReasons(plane).length, 4) as Niveau;
 

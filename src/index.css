@@ -38,6 +38,7 @@ body {
 }
 
 /* vliegtuig op de kaart */
+/* OUD: alleen nog voor de oude PlaneMarker. de canvaslaag (vliegtuigCanvas.ts) tekent icoon, schaduw, pulsring en witte ring zelf */
 .vliegtuig {
   position: relative;
   width: 24px;
@@ -100,6 +101,51 @@ body {
   50% {
     opacity: 0.35;
   }
+}
+
+/* bereikcirkel (GebiedCirkel.tsx): muis op de rand of het kruisje, of in de verplaatsmodus binnen de cirkel.
+   twee klassen, zodat dit wint van Leaflets grijp-cursor. het handje boven een vliegtuig (inline stijl) wint weer hiervan */
+.leaflet-container.radar-gebied-greep {
+  cursor: move;
+}
+.leaflet-container.radar-gebied-sleep {
+  cursor: grabbing;
+}
+
+/* kruisje in het midden van de bereikcirkel: rustig, en fel in de verplaatsmodus */
+.radar-kruis {
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+.radar-kruis::before,
+.radar-kruis::after {
+  content: "";
+  position: absolute;
+  background: #34d399;
+  border-radius: 1px;
+}
+.radar-kruis::before {
+  left: 7px;
+  top: 0;
+  width: 2px;
+  height: 16px;
+}
+.radar-kruis::after {
+  left: 0;
+  top: 7px;
+  width: 16px;
+  height: 2px;
+}
+.radar-kruis--aan {
+  opacity: 1;
+}
+
+/* de hint "dubbelklik om de cirkel te verslepen", in de stijl van het paneel */
+.leaflet-tooltip.radar-hint {
+  @apply rounded border-slate-700 bg-slate-900/95 px-2 py-1 text-xs text-slate-200 shadow-lg;
+}
+.leaflet-tooltip-top.radar-hint::before {
+  border-top-color: rgb(51 65 85); /* slate-700, het pijltje */
 }
 
 /* minder beweging: alles staat stil, de informatie blijft */

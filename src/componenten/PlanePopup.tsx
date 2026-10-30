@@ -1,13 +1,18 @@
-import { getSpeedInKmH, getSuspicionReasons } from "../../utils/planeUtils";
-import { callsignVan, kleurVan, niveauVan } from "../dreiging";
+// OUD: import { getSpeedInKmH, getSuspicionReasons } from "../../utils/planeUtils";
+// OUD: import { callsignVan, kleurVan, niveauVan } from "../dreiging";
+import { getSpeedInKmH } from "../../utils/planeUtils";
+import { callsignVan, kleurVan, type Beoordeling } from "../dreiging";
 
 //! waarde netjes tonen, of een streepje als opensky niets weet
 const of = (waarde: number | null | undefined, maak: (w: number) => string) =>
   typeof waarde === "number" ? maak(waarde) : "–";
 
-const PlanePopup = ({ plane }: { plane: any }) => {
-  const redenen = getSuspicionReasons(plane);
-  const kleur = kleurVan(niveauVan(plane));
+//! de beoordeling (redenen en niveau) komt van App, dus de popup rekent de regels niet nog een keer uit
+const PlanePopup = ({ plane, beoordeling }: { plane: any; beoordeling: Beoordeling }) => {
+  // OUD: const redenen = getSuspicionReasons(plane);
+  // OUD: const kleur = kleurVan(niveauVan(plane));
+  const { redenen, niveau } = beoordeling;
+  const kleur = kleurVan(niveau);
   const hoogte = plane[13] ?? plane[7]; // geo-hoogte, anders barometrisch
   const koers = plane[10];
   const stijging = plane[11];
