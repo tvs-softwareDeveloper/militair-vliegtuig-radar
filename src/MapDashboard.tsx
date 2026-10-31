@@ -14,6 +14,9 @@ import type { PakketTijd, VliegtuigCanvas } from "./componenten/vliegtuigCanvas"
 // OUD: import { niveauVan } from "./dreiging";
 import { GEEN_BEOORDELING, type Beoordeling, type Niveau } from "./dreiging";
 import type { Punt } from "./App";
+// OUD: import type { Bron } from "./verversen";
+// OUD: import { ADSB_MAX_KM, type Bron } from "./verversen";
+import { ADSB_MAX_KM, type Bron, type Vlucht } from "./verversen";
 
 type Props = {
   // OUD: planes: any[]; //! array van vliegtuig data
@@ -30,6 +33,32 @@ type Props = {
   straal: number; //! straal in km
   onKaartMidden: (punt: Punt) => void; //! het midden van de kaart, voor de knop in het paneel
   onMiddenGesleept: (punt: Punt) => void; //! de bereikcirkel is naar een nieuw midden gesleept
+  onStraalGesleept: (km: number) => void; //! de rand van de cirkel is naar een nieuwe straal gesleept
+  bron: Bron; //! waar de posities vandaan komen, voor de bronvermelding in de kaarthoek
+  alleenMilitair: boolean; //! filter: alleen militaire toestellen
+  sporen: boolean; //! sporen achter de vliegtuigen
+  vlucht: Vlucht | null; //! de hele vlucht van het gekozen vliegtuig, als die gevraagd is
+  kanVlucht: boolean; //! de knop "Hele vlucht" kan (alleen met een OpenSky-account, of met de nep-bron)
+  onVlucht: (id: string) => void;
+};
+
+//! de bronvermelding van de vliegtuigdata in de kaarthoek, bij de kaartmakers. wisselt mee met de gekozen bron.
+//! het attribution-prop van TileLayer verandert niet meer na het starten, daarom via de attributionControl
+const BRON_TEKST: Record<Bron, string> = {
+  opensky: 'data: <a href="https://opensky-network.org" target="_blank" rel="noopener">OpenSky Network</a>',
+  adsblol: 'data: <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a> (<a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL</a>)',
+};
+
+const BronVermelding = ({ bron }: { bron: Bron }) => {
+  const map = useMap();
+  useEffect(() => {
+    const tekst = BRON_TEKST[bron];
+    map.attributionControl?.addAttribution(tekst);
+    return () => {
+      map.attributionControl?.removeAttribution(tekst);
+    };
+  }, [map, bron]);
+  return null;
 };
 
 //! het vak om de cirkel, om de kaart op in te zoomen
@@ -110,12 +139,29 @@ const PopupKlaar = ({ popupRef, id, gepand }: { popupRef: RefObject<L.Popup | nu
 //! we onthouden het gebied waarop de kaart staat in plaats van "de eerste keer": StrictMode draait een effect bij het starten twee keer.
 //! een midden dat je zelf met de cirkel hebt gesleept slaan we over: die cirkel heb je zelf neergezet, dan springt de kaart niet weg (D5)
 // OUD: const VolgGebied = ({ midden, straal }: { midden: Punt; straal: number }) => {
-const VolgGebied = ({ midden, straal, gesleept }: { midden: Punt; straal: number; gesleept: RefObject<Punt | null> }) => {
+// OUD: const VolgGebied = ({ midden, straal, gesleept }: { midden: Punt; straal: number; gesleept: RefObject<Punt | null> }) => {
+//! ook een straal die je zelf aan de rand hebt gesleept slaan we over (K5). die ref wordt na gebruik leeg gemaakt, anders zou de schuif
+//! later op dezelfde waarde de kaart niet meer laten zoomen
+const VolgGebied = ({
+  midden,
+  straal,
+  gesleept,
+  gesleeptStraal,
+}: {
+  midden: Punt;
+  straal: number;
+  gesleept: RefObject<Punt | null>;
+  gesleeptStraal: MutableRefObject<number | null>;
+}) => {
   const map = useMap();
   const staatOp = useRef({ midden, straal });
   useEffect(() => {
     if (staatOp.current.midden === midden && staatOp.current.straal === straal) return;
-    const zelfGesleept = midden === gesleept.current && staatOp.current.straal === straal;
+    // OUD: const zelfGesleept = midden === gesleept.current && staatOp.current.straal === straal;
+    const zelfGesleept =
+      (midden === gesleept.current && staatOp.current.straal === straal) ||
+      (straal === gesleeptStraal.current && staatOp.current.midden === midden);
+    gesleeptStraal.current = null;
     staatOp.current = { midden, straal };
     if (zelfGesleept) return;
     map.flyToBounds(vakVan(midden, straal), { padding: [MARGE, MARGE], duration: 0.6 });
@@ -152,6 +198,13 @@ const Kaart = ({
   straal,
   onKaartMidden,
   onMiddenGesleept,
+  onStraalGesleept,
+  bron,
+  alleenMilitair,
+  sporen,
+  vlucht,
+  kanVlucht,
+  onVlucht,
 }: Props) => {
   //! de canvaslaag zelf, om te vragen waar een vliegtuig nu is (gegist bestek)
   const laagRef = useRef<VliegtuigCanvas | null>(null);
@@ -162,13 +215,25 @@ const Kaart = ({
     gesleeptRef.current = punt;
     onMiddenGesleept(punt);
   };
+  //! zelfde voor de straal: de kaart blijft staan
+  const gesleeptStraalRef = useRef<number | null>(null);
+  const opStraalGesleept = (km: number) => {
+    gesleeptStraalRef.current = km;
+    onStraalGesleept(km);
+  };
   const gekozen = gekozenId === null ? undefined : planes.find((p) => p[0] === gekozenId);
   const gekozenBeoordeling = (gekozen && beoordelingen.get(gekozen[0])) || GEEN_BEOORDELING;
   const vliegPlane = vliegNaar === null ? undefined : planes.find((p) => p[0] === vliegNaar);
 
   //! de popup hoort bij een vliegtuig dat op de kaart staat: niet als het filter hem verbergt (net als bij de oude markers)
+  // OUD: const popupOpen =
+  // OUD:   !!gekozen && typeof gekozen[5] === "number" && typeof gekozen[6] === "number" && (filter === null || gekozenBeoordeling.niveau === filter);
   const popupOpen =
-    !!gekozen && typeof gekozen[5] === "number" && typeof gekozen[6] === "number" && (filter === null || gekozenBeoordeling.niveau === filter);
+    !!gekozen &&
+    typeof gekozen[5] === "number" &&
+    typeof gekozen[6] === "number" &&
+    (filter === null || gekozenBeoordeling.niveau === filter) &&
+    (!alleenMilitair || gekozenBeoordeling.militair);
   //! startplek van de popup. mag alleen veranderen bij een ander vliegtuig: react-leaflet sluit en opent een popup bij elke nieuwe position.
   //! daarna schuift de canvaslaag hem mee met het vliegtuig (verplaatsPopup)
   // OUD: const popupStart = useMemo<[number, number] | null>(() => (gekozen ? [gekozen[6], gekozen[5]] : null), [gekozenId, popupOpen]);
@@ -177,6 +242,12 @@ const Kaart = ({
     [gekozenId, popupOpen],
   );
   const popupRef = useRef<L.Popup | null>(null);
+  //! de hele vlucht voor de laag: alleen als hij binnen is en bij het gekozen vliegtuig hoort. useMemo, zodat de laag hem niet bij
+  //! elke render opnieuw omrekent
+  const vluchtPad = useMemo(
+    () => (vlucht && vlucht.status === "klaar" && vlucht.id === gekozenId && vlucht.punten ? { id: vlucht.id, punten: vlucht.punten } : null),
+    [vlucht, gekozenId],
+  );
   const verplaatsPopup = (positie: L.LatLng) => {
     popupRef.current?.setLatLng(positie);
   };
@@ -199,8 +270,11 @@ const Kaart = ({
       <TileLayer
         url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}"
         maxZoom={16}
-        attribution="Kaart &copy; Esri, HERE, Garmin, &copy; OpenStreetMap · data: OpenSky Network"
+        // OUD: attribution="Kaart &copy; Esri, HERE, Garmin, &copy; OpenStreetMap · data: OpenSky Network"
+        attribution="Kaart &copy; Esri, HERE, Garmin, &copy; OpenStreetMap"
       />
+      {/* de bron van de vliegtuigen: OpenSky of adsb.lol */}
+      <BronVermelding bron={bron} />
       {/* plaatsnamen als losse laag erboven */}
       <TileLayer
         url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}"
@@ -215,6 +289,8 @@ const Kaart = ({
         straal={straal}
         onVerplaatst={opGesleept}
         onVoorlopig={(gebied) => laagRef.current?.zetVoorlopigGebied(gebied)}
+        onStraal={opStraalGesleept}
+        maxKm={bron === "adsblol" ? ADSB_MAX_KM : 1000}
       />
 
       {/* OUD: één marker (DOM-element + React-component + popup) per vliegtuig. vervangen door de canvaslaag hieronder
@@ -252,6 +328,10 @@ const Kaart = ({
         onKlik={onKies}
         onGekozenPositie={verplaatsPopup}
         laagRef={laagRef}
+        middenLengte={midden[1]}
+        alleenMilitair={alleenMilitair}
+        sporen={sporen}
+        vlucht={vluchtPad}
       />
 
       {/* één popup voor het gekozen vliegtuig, in plaats van één per marker. sluiten gaat via React (klik op een lege plek of Esc),
@@ -268,7 +348,14 @@ const Kaart = ({
           closeOnEscapeKey={false}
           autoPan={false}
         >
-          <PlanePopup plane={gekozen} beoordeling={gekozenBeoordeling} />
+          {/* OUD: <PlanePopup plane={gekozen} beoordeling={gekozenBeoordeling} /> */}
+          <PlanePopup
+            plane={gekozen}
+            beoordeling={gekozenBeoordeling}
+            vlucht={vlucht?.id === gekozenId ? vlucht : null}
+            kanVlucht={kanVlucht}
+            onVlucht={onVlucht}
+          />
           {/* OUD: <PopupKlaar popupRef={popupRef} /> */}
           <PopupKlaar popupRef={popupRef} id={gekozenId!} gepand={gepandRef} />
         </Popup>
@@ -278,7 +365,8 @@ const Kaart = ({
       {/* OUD: <NaarGekozen plane={gekozen} /> */}
       <NaarGekozen plane={vliegPlane} positieVan={positieVan} />
       {/* OUD: <VolgGebied midden={midden} straal={straal} /> */}
-      <VolgGebied midden={midden} straal={straal} gesleept={gesleeptRef} />
+      {/* OUD: <VolgGebied midden={midden} straal={straal} gesleept={gesleeptRef} /> */}
+      <VolgGebied midden={midden} straal={straal} gesleept={gesleeptRef} gesleeptStraal={gesleeptStraalRef} />
       <MeldMidden onKaartMidden={onKaartMidden} />
     </MapContainer>
   );

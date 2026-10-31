@@ -5,7 +5,10 @@
   "scripts": {
     "server": "node dev-server.mjs",
     "server:nep": "node dev-server.mjs --nep 5000",
-    "dev": "vite --open"
+    "dev": "vite --open",
+    "check": "node tests/alles.mjs",
+    "check:opensky": "node tests/opensky-echt.mjs",
+    "meten": "node tests/meten.mjs"
   },
   "dependencies": {
     "axios": "^1.7.9",
@@ -21,6 +24,7 @@
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "playwright": "1.64.1",
     "postcss": "^8.4.49",
     "socket.io": "^4.8.1",
     "tailwindcss": "^3.4.17",

@@ -31,6 +31,8 @@ const Meter = ({ aantal, laatsteUpdate }: Props) => {
     correctieMax: 0,
     correctieZoom: 0,
     gesnapt: 0,
+    recht: { aantal: 0, mediaan: 0, p95: 0 }, //! fase 3: de correctie apart voor rechtdoor en in bochten
+    bocht: { aantal: 0, mediaan: 0, p95: 0 },
   });
 
   //! tel de beeldjes: elke seconde een fps, en onthoud per seconde ook het traagste beeld
@@ -78,6 +80,8 @@ const Meter = ({ aantal, laatsteUpdate }: Props) => {
           correctieMax: meting.correctieMaxPx,
           correctieZoom: meting.correctieZoom,
           gesnapt: meting.gesnapt,
+          recht: meting.correctieRecht,
+          bocht: meting.correctieBocht,
         });
         meting.tekenMsMax = 0;
         meting.pulsMsMax = 0;
@@ -134,6 +138,11 @@ const Meter = ({ aantal, laatsteUpdate }: Props) => {
       <p>
         correctie mediaan {tekenen.correctieMediaan.toFixed(1)} · p95 {tekenen.correctieP95.toFixed(1)} · max {tekenen.correctieMax.toFixed(1)} px (zoom{" "}
         {tekenen.correctieZoom}){tekenen.gesnapt > 0 ? ` · ${tekenen.gesnapt} meteen goed gezet` : ""}
+      </p>
+      {/* bochten voorspellen: dezelfde correctie apart voor wie rechtdoor vloog en wie draaide (p95 in px) */}
+      <p>
+        rechtdoor {tekenen.recht.aantal}: p95 {tekenen.recht.p95.toFixed(1)} · bocht {tekenen.bocht.aantal}: mediaan{" "}
+        {tekenen.bocht.mediaan.toFixed(1)} · p95 {tekenen.bocht.p95.toFixed(1)} px
       </p>
     </div>
   );

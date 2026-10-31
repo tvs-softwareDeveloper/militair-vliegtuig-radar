@@ -111,6 +111,19 @@ body {
 .leaflet-container.radar-gebied-sleep {
   cursor: grabbing;
 }
+/* de straal: op de rand van de cirkel in de verplaatsmodus, de pijl wijst van het midden af (GebiedCirkel.tsx) */
+.leaflet-container.radar-gebied-maat-ew {
+  cursor: ew-resize;
+}
+.leaflet-container.radar-gebied-maat-ns {
+  cursor: ns-resize;
+}
+.leaflet-container.radar-gebied-maat-nesw {
+  cursor: nesw-resize;
+}
+.leaflet-container.radar-gebied-maat-nwse {
+  cursor: nwse-resize;
+}
 
 /* kruisje in het midden van de bereikcirkel: rustig, en fel in de verplaatsmodus */
 .radar-kruis {

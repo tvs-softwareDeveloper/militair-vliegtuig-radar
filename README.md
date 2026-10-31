@@ -1,12 +1,12 @@
 # Vliegtuigradar
 
-Live kaart van het luchtruim rond Nederland. Elk vliegtuig krijgt een dreigingsniveau op basis van verdacht gedrag: hoge snelheid, geen callsign of squawk, lage hoogte, een actief noodsignaal, een koers richting het binnenland of een snelle stijging of daling. De posities komen live van het [OpenSky Network](https://opensky-network.org).
+Live kaart van het luchtruim rond Nederland. Elk vliegtuig krijgt een dreigingsniveau op basis van verdacht gedrag: hoge snelheid, geen callsign of squawk, lage hoogte, een actief noodsignaal, een koers richting het binnenland of een snelle stijging of daling. De posities komen live van het [OpenSky Network](https://opensky-network.org) of, als je dat kiest, van [adsb.lol](https://adsb.lol).
 
 Gebouwd met React, TypeScript, Vite, Tailwind CSS, Leaflet en Socket.IO.
 
 ## Wat je nodig hebt
 
-- [Node.js](https://nodejs.org) 18 of nieuwer (met npm)
+- [Node.js](https://nodejs.org) 20.12 of nieuwer (met npm). De server leest `.env` met `process.loadEnvFile`, en dat bestaat pas sinds 20.12.
 - Internet, voor de kaart en de vluchtgegevens
 
 ## Opstarten
@@ -17,7 +17,7 @@ Gebouwd met React, TypeScript, Vite, Tailwind CSS, Leaflet en Socket.IO.
    npm install
    ```
 
-2. Start de server in een eerste terminal. Die haalt de vluchten op bij OpenSky en stuurt ze door naar de app:
+2. Start de server in een eerste terminal. Die haalt de vluchten op bij OpenSky (of adsb.lol, als je dat kiest) en stuurt ze door naar de app:
 
    ```bash
    npm run server
@@ -37,11 +37,30 @@ Stoppen doe je met `Ctrl+C` in beide terminals.
 
 ## Gebruik
 
-- **Bereik:** met de schuif in het paneel kies je de straal, van 25 tot 1000 km. Standaard is dat 250 km rond het midden van Nederland. Met **Midden van de kaart** wordt het midden van de kaart het nieuwe middelpunt, en **Nederland** zet het terug.
+- **Bereik:** met de schuif in het paneel kies je de straal, van 25 tot 1000 km (bij adsb.lol tot 450 km). Standaard is dat 250 km rond het midden van Nederland. Met **Midden van de kaart** wordt het midden van de kaart het nieuwe middelpunt, en **Nederland** zet het terug.
+- **Cirkel verslepen of groter maken:** dubbelklik op de rand van de cirkel of op het kruisje in het midden. Daarna:
+  - sleep binnenin om de cirkel ergens anders heen te zetten;
+  - sleep de rand om de straal te veranderen. Er staat dan een pijl op de rand, en een label met de km. De straal gaat in stappen van 25 km, tot 1000 km (450 km bij adsb.lol).
+
+  Laat je los, dan haalt de server de vliegtuigen van het nieuwe gebied op, en de kaart blijft staan. De schuif in het paneel loopt mee. Met `Esc` zet je alles terug. Een dubbelklik ergens anders zoomt gewoon in.
+
+  Op een aanraakscherm: dubbel tikken op de rand en meteen doorschuiven. Van het midden af of ernaartoe verandert de straal, langs de rand verplaatst de cirkel. Dubbel tikken op het kruisje verplaatst altijd.
+- **Bron:** kies **OpenSky** (standaard) of **adsb.lol**. Zie [adsb.lol als tweede bron](#adsblol-als-tweede-bron). Ook deze keuze wordt in de browser onthouden.
 - **Verversen:** kies **Zuinig**, **Normaal** of **Snel**. Dat bepaalt hoe vaak de server nieuwe posities ophaalt. Onder de knoppen staat hoeveel OpenSky-tegoed dat per uur kost en hoe lang het tegoed nog meegaat (zie [OpenSky-tegoed](#opensky-tegoed-en-verversen)). Je keuze wordt in de browser onthouden. Tussen twee verversingen door vliegen de vliegtuigen op hun snelheid en koers verder, dus ook op Zuinig bewegen ze over de kaart.
 - **Dreigingsniveau:** de vijf niveaus zijn ook filters. Klik op een niveau om alleen die vliegtuigen te zien, en klik nog een keer om alles weer te tonen.
+- **Militair:** bekende militaire toestellen hebben op de kaart een eigen vorm, een straaljager met deltavleugel. De kleur blijft het dreigingsniveau. Het paneel heeft een teller "Militair" en een lijst met callsign, type en registratie. Met **Alleen militair** zie je alleen die toestellen; dat kan samen met een dreigingsniveau. "Militair" telt niet mee als reden voor verdacht.
+  - De herkenning komt uit de database van adsb.lol (`dbFlags`). Bij OpenSky haalt de server daarvoor elke minuut de militaire lijst van adsb.lol op (`/v2/mil`, kost geen OpenSky-tegoed).
+  - Een militair toestel dat niet in die database staat, ziet de radar niet als militair.
 - **Meest verdacht:** klik op een vliegtuig in de lijst. De kaart vliegt er dan naartoe en opent de gegevens.
-- **Vliegtuig op de kaart:** klik erop voor hoogte, snelheid, koers, verticale snelheid, squawk, noodsignaal en de redenen waarom het als verdacht telt.
+- **Vliegtuig op de kaart:** klik erop voor hoogte, snelheid, koers, verticale snelheid, squawk, noodsignaal en de redenen waarom het als verdacht telt. Het vliegtuig krijgt een witte ring en de gegevens vliegen mee. Klik op een lege plek of druk op `Esc` om niets meer te kiezen.
+- **Vliegtuigen zonder nieuwe positie** vliegen nog minstens een minuut door. Komt er dan nog steeds niets binnen, dan blijven ze half doorzichtig staan.
+- **Bochten:** bij OpenSky op **Normaal** of **Snel** schat de app uit twee pakketten hoe snel een vliegtuig draait, en laat hij het tot 15 s langs een boog verder vliegen. Daarna gaat het rechtdoor. Op **Zuinig** (een minuut tussen de pakketten) en bij adsb.lol vliegt alles rechtdoor door, want daar hielp het niet. Zie `docs/plan-van-aanpak-herkenning-en-sporen.md`, fase 3.
+- **Sporen:** achter elk vliegtuig staat een vervagend spoor van de laatste minuut, vanaf zoom 8. Achter het gekozen vliegtuig staat het altijd. Met de schakelaar **Sporen** in het paneel zet je ze uit; je keuze wordt onthouden.
+- **Afgelegde route:** klik je op een vliegtuig, dan verschijnt meteen een gestippelde lijn van de route die hij al heeft afgelegd. Onderaan de popup staat waar die lijn vandaan komt:
+  - **met een OpenSky-account:** de hele vlucht van OpenSky (`tracks`, door OpenSky zelf "experimenteel" genoemd, ongeveer één punt per 10 minuten), aangevuld met de punten die de server zelf onthoudt;
+  - **zonder account, of bij adsb.lol:** de route sinds de radar het vliegtuig ziet. De server onthoudt van elk vliegtuig elke 20 s een punt, tot 2 uur terug.
+
+  Kies je een ander vliegtuig, dan komt zijn route ervoor in de plaats.
 
 | Kleur | Betekenis |
 |---|---|
@@ -50,6 +69,7 @@ Stoppen doe je met `Ctrl+C` in beide terminals.
 | Oranje | 2 redenen |
 | Rood | 3 redenen (met een pulserende ring) |
 | Paars | 4 of meer redenen |
+| Deltavorm (in een van de kleuren hierboven) | Militair toestel |
 
 ## OpenSky-tegoed en verversen
 
@@ -82,22 +102,84 @@ Alleen de server logt in bij OpenSky. Wie de radar bekijkt, logt nooit in.
 
 Hiervoor is Node.js 20.12 of nieuwer nodig. Klopt de key niet, dan meldt de server dat en werkt hij gewoon anoniem verder.
 
+## adsb.lol als tweede bron
+
+[adsb.lol](https://adsb.lol) is gratis en heeft geen sleutel of tegoed nodig. De posities zijn vaak minder dan een seconde oud.
+
+| | OpenSky | adsb.lol |
+|---|---|---|
+| Tegoed | 400 per dag, of 4.000 met een account | geen |
+| Bereik | tot 1000 km | tot 450 km |
+| Zuinig / Normaal / Snel | zie de tabel hierboven | 15 s / 5 s / 2 s |
+| In de popup | land van herkomst | type en registratie (bijvoorbeeld "B738 · PH-BXA") |
+
+- **Grenzen:** adsb.lol heeft geen vaste limieten; die hangen af van hoe druk het is. Geeft adsb.lol een fout, dan wacht de server even (5 s, daarna 10 s). Na 3 fouten op rij gaat hij terug naar OpenSky, en dat meldt het paneel.
+- **Licentie:** de data van adsb.lol valt onder de [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/1-0/). Daarom staat er "data: adsb.lol (ODbL)" in de hoek van de kaart als die bron gekozen is.
+
+## Meten en testen
+
+Om te meten of te testen zonder OpenSky-tegoed te gebruiken:
+
+- **Nep-bron:** `npm run server:nep` start de server met 5.000 nep-vliegtuigen in plaats van OpenSky. Een ander aantal en tempo kies je met `node dev-server.mjs --nep 1000 --elke 5` (elke 5 s een nieuw pakket). Hetzelfde aantal geeft altijd dezelfde vliegtuigen, zodat twee metingen te vergelijken zijn.
+- **Meter:** zet `?meten` achter het adres (`http://localhost:5173/?meten`). Rechtsboven staan dan:
+  - de fps en het traagste beeld;
+  - hoe lang één tekenbeurt duurt;
+  - hoeveel vliegtuigen er getekend worden, van het totaal ("zichtbaar X van Y"; buiten beeld wordt niet getekend);
+  - hoe ver de voorspelde positie ernaast zat toen het laatste pakket binnenkwam.
+- **Testserver naast de echte:** `node dev-server.mjs --poort 3002` start een tweede server. De app praat ermee als je hem bouwt met `VITE_SERVER=http://localhost:3002`.
+
+In de dev-server draait React alles twee keer (StrictMode). Voor echte cijfers bouw je eerst (`npx vite build`) en start je daarna `npx vite preview`.
+
+Hoe snel de nieuwe kaart is tegenover de oude, staat in `docs/plan-van-aanpak-live-kaart.md` (hoofdstuk 8).
+
+### Automatische tests
+
+De tests staan in `tests/` en gebruiken [Playwright](https://playwright.dev) met een headless Chromium. Ze bouwen de app zelf, en starten en stoppen hun eigen servers. Ze gebruiken eigen poorten (31xx en 51xx), dus een radar die je zelf op 3001 en 5173 hebt draaien, merkt er niets van.
+
+| Opdracht | Wat | Duur | Kost tegoed |
+|---|---|---|---|
+| `npm run check` | Alle tests die niets kosten: de server met nep-adsb.lol en nep-OpenSky, de kaart (testlijst T2-T13), de twee bugs uit fase 5, de militaire herkenning, de straal slepen, de bochten en de sporen | ±10 min | nee |
+| `npm run check:opensky` | T9 met de echte OpenSky: kloppen het interval en het tegoed in het paneel met de terminal van de server? | ±4 min | ja, ±40 met een account |
+| `npm run meten` | De meting: fps in rust, tijdens pannen en tijdens zoomen, met 1.000, 3.000 en 5.000 nep-vliegtuigen. `node tests/meten.mjs --versie a1a9094` meet ook een oudere commit, zodat je oud en nieuw op dezelfde laptop vergelijkt; `--aantallen 1000` meet alleen dat aantal | ±5 min | nee |
+
+Elk testbestand kun je ook los draaien, bijvoorbeeld `node tests/kaart.mjs`.
+
+Voor de bochten is er een eigen meting: `node tests/bochten.mjs`. Die vergelijkt per boogduur (`?meten&bocht=…`) hoe ver de voorspelling ernaast zat, met de nep-bron. Met `--echt` doet hij dat op OpenSky Normaal en Snel en op adsb.lol; dat kost ±25 tegoed.
+
+- **Browser per laptop:** Playwright heeft per laptop één keer zijn browser nodig: `npx playwright install chromium`. Doe dat in een gewone terminal.
+- **Wat niet automatisch kan:**
+  - T15, een tab 5 minuten op de achtergrond: bevriezen werkt niet in de headless Chromium;
+  - touch op een echte telefoon;
+  - je eigen oordeel of het soepel oogt.
+- **Sluit andere tabbladen met de radar** als je `check:opensky` of `meten` draait. Elke open app is een eigen kijker en vraagt ook data op.
+
 ## Mappen en bestanden
 
 | Pad | Wat |
 |---|---|
-| `dev-server.mjs` | De server: haalt per app het gekozen gebied op bij OpenSky en stuurt de vliegtuigen via Socket.IO |
-| `src/App.tsx` | De pagina: paneel en kaart, filter, bereik en de verbinding met de server |
-| `src/MapDashboard.tsx` | De kaart (Leaflet) met de cirkel van het bereik en de vliegtuigen |
-| `src/componenten/StatusPanel.tsx` | Het paneel: live status, bereik, dreigingsniveaus en de lijst met de meest verdachte vliegtuigen |
+| `dev-server.mjs` | De server: haalt per app het gekozen gebied op bij OpenSky of adsb.lol en stuurt de vliegtuigen via Socket.IO. Ook de nep-bron |
+| `.env.example` | Voorbeeld voor `.env` met de OpenSky-key |
+| `src/App.tsx` | De pagina: paneel en kaart, filter, bereik, bron, verversen en de verbinding met de server |
+| `src/MapDashboard.tsx` | De kaart (Leaflet) met de cirkel van het bereik, de vliegtuigen en de popup |
+| `src/componenten/VliegtuigLaag.tsx` | Koppelt de vliegtuiglaag aan React |
+| `src/componenten/vliegtuigCanvas.ts` | Alle vliegtuigen op één canvas: alleen wat in beeld is wordt getekend, klikken, de beweging tussen twee pakketten, de sporen (eigen canvas) en de hele vlucht |
+| `src/beweging.ts` | De rekenregels voor die beweging (waar een vliegtuig nu is, op snelheid en koers, en langs een boog in een bocht) |
+| `src/componenten/GebiedCirkel.tsx` | De cirkel van het bereik: na een dubbelklik te verslepen of groter en kleiner te maken |
+| `src/componenten/StatusPanel.tsx` | Het paneel: live status, bereik, bron, verversen, dreigingsniveaus en de lijst met de meest verdachte vliegtuigen |
 | `src/componenten/PlanePopup.tsx` | De gegevens van één vliegtuig |
-| `src/componenten/PlaneMarker.tsx` | Een vliegtuig op de kaart dat soepel naar zijn nieuwe positie schuift |
-| `src/componenten/planeIcons.tsx` | Het vliegtuigicoon, gedraaid naar de koers en gekleurd per niveau |
+| `src/verversen.ts` | De verversstanden en de bronnen, en wat de kijker gekozen heeft (onthouden in de browser) |
 | `src/dreiging.ts` | De dreigingsniveaus met hun namen en kleuren |
 | `utils/planeUtils.ts` | De regels voor verdacht gedrag |
 | `services/socket.ts` | De verbinding met de server |
+| `src/componenten/Meter.tsx`, `src/meten.ts`, `utils/meting.ts` | De meter (`?meten`) en zijn tellers |
+| `src/componenten/PlaneMarker.tsx`, `src/componenten/planeIcons.tsx` | De oude vliegtuigen als losse markers. Niet meer in gebruik sinds de canvaslaag, maar bewaard |
+| `tests/` | De automatische tests en de meting (zie [Automatische tests](#automatische-tests)). `tests/.uitvoer/` (builds en logs) staat in `.gitignore` |
+| `docs/plan-van-aanpak-live-kaart.md` | Het plan en de uitkomst van het werk aan de live kaart, met de metingen |
+| `docs/plan-van-aanpak-herkenning-en-sporen.md` | Het tweede plan en de uitkomst: militaire herkenning, straal slepen, bochten voorspellen en sporen, met de metingen |
 
 ## Versies
 
-- `main`: de oorspronkelijke versie.
-- `interface-vernieuwd`: de nieuwe interface. Dat is een donkere kaart, het zijpaneel en de filter op straal.
+Alles staat op `main`. De eerste upload is commit `fcbba48`. Daarna kwamen:
+- de nieuwe interface en de filter op straal;
+- de live kaart: canvas, beweging, verversen, cirkel verslepen en adsb.lol;
+- militaire herkenning, de straal slepen, bochten voorspellen en sporen.

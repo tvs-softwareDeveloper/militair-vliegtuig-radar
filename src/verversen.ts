@@ -18,9 +18,27 @@ export type Verversing = {
   perUur: number;
 };
 
+//! waar de posities vandaan komen. opensky is de standaard (met tegoed), adsb.lol de tweede bron (gratis, nieuwer, max 450 km)
+export type Bron = "opensky" | "adsblol";
+
+export const BRONNEN: { bron: Bron; naam: string; uitleg: string }[] = [
+  { bron: "opensky", naam: "OpenSky", uitleg: "OpenSky Network: met tegoed, tot 1000 km. Met land van herkomst." },
+  { bron: "adsblol", naam: "adsb.lol", uitleg: "adsb.lol: geen tegoed, posities vaak minder dan een seconde oud, tot 450 km. Zonder land, wel type en registratie." },
+];
+
+export const ADSB_MAX_KM = 450; //! adsb.lol kan max 250 zeemijl (463 km), de schuif stopt op 450
+
+//! de seconden per stand bij adsb.lol staan bij de knoppen (van de server), dit is de tooltip
+export const ADSB_UITLEG: Record<Stand, string> = {
+  zuinig: "Elke 15 s. Geen tegoed nodig.",
+  normaal: "Elke 5 s. Geen tegoed nodig.",
+  snel: "Elke 2 s. Geen tegoed nodig, maar vraagt het meest van adsb.lol.",
+};
+
 //! uit het 'tegoed'-bericht van de server
 export type Tegoed = {
-  bron: "opensky" | "nep";
+  // OUD: bron: "opensky" | "nep";
+  bron: Bron | "nep";
   account: boolean; //! de server gebruikt een OpenSky-account (.env)
   over: number | null; //! null = nog niet bekend
   pauzeTot: number | null; //! tegoed op: tot dit moment (ms) geen nieuwe data
@@ -50,6 +68,56 @@ export const bewaarStand = (stand: Stand) => {
   } catch {
     //! niet erg: dan staat hij de volgende keer weer op de standaard
   }
+};
+
+//! de gekozen bron ook onthouden, op dezelfde manier. niets gekozen = opensky (de standaard van de server)
+const BRON_SLEUTEL = "radar.bron";
+
+export const leesBron = (): Bron | null => {
+  try {
+    const b = localStorage.getItem(BRON_SLEUTEL);
+    return b === "opensky" || b === "adsblol" ? b : null;
+  } catch {
+    return null;
+  }
+};
+
+export const bewaarBron = (bron: Bron) => {
+  try {
+    localStorage.setItem(BRON_SLEUTEL, bron);
+  } catch {
+    //! niet erg: dan begint hij de volgende keer weer op opensky
+  }
+};
+
+//! de schakelaar "Sporen" (fase 4 van het tweede plan) ook onthouden. niets gekozen = aan
+const SPOREN_SLEUTEL = "radar.sporen";
+
+export const leesSporen = (): boolean => {
+  try {
+    return localStorage.getItem(SPOREN_SLEUTEL) !== "uit";
+  } catch {
+    return true;
+  }
+};
+
+export const bewaarSporen = (aan: boolean) => {
+  try {
+    localStorage.setItem(SPOREN_SLEUTEL, aan ? "aan" : "uit");
+  } catch {
+    //! niet erg: dan staan ze de volgende keer weer aan
+  }
+};
+
+//! de afgelegde route van een vliegtuig, gevraagd zodra je hem kiest. van OpenSky (de hele vlucht, met een account) aangevuld met
+//! de eigen punten van de server, of alleen die eigen punten: sinds de radar hem ziet
+export type Vlucht = {
+  id: string;
+  status: "laden" | "klaar" | "fout";
+  punten?: [number, number][]; //! lat, lon
+  van?: number; //! begin van de route (unix, seconden)
+  bron?: "opensky" | "radar" | "nep"; //! waar de route vandaan komt
+  melding?: string;
 };
 
 //! hoe lang het tegoed nog meegaat bij dit tempo, in gewone taal: "± 3,5 uur" of "± 25 min"

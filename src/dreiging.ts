@@ -13,15 +13,26 @@ export const NIVEAUS: { niveau: Niveau; naam: string; kleur: string }[] = [
 
 //! de beoordeling van één vliegtuig: de redenen en het niveau dat daaruit volgt.
 //! App rekent dit één keer per pakket uit (een Map van icao naar beoordeling), kaart, filter, tellers en lijst lezen het daarna alleen nog
-export type Beoordeling = { redenen: string[]; niveau: Niveau };
+// OUD: export type Beoordeling = { redenen: string[]; niveau: Niveau };
+//! militair staat los van het niveau: een militair toestel met callsign en transponder is niet verdacht (K3 van het tweede plan)
+export type Beoordeling = { redenen: string[]; niveau: Niveau; militair: boolean };
 
+//! wat de server extra over een vliegtuig weet (index 17): bij adsb.lol altijd, bij opensky alleen als hij op de militaire lijst staat
+export type Extra = { bron: string; type: string | null; registratie: string | null; militair: boolean; nood: string | null };
+export const extraVan = (plane: any): Extra | null => (plane?.[17] && typeof plane[17] === "object" ? plane[17] : null);
+
+// OUD: export const beoordeel = (plane: any): Beoordeling => {
+// OUD:   const redenen = getSuspicionReasons(plane);
+// OUD:   return { redenen, niveau: Math.min(redenen.length, 4) as Niveau };
+// OUD: };
 export const beoordeel = (plane: any): Beoordeling => {
   const redenen = getSuspicionReasons(plane);
-  return { redenen, niveau: Math.min(redenen.length, 4) as Niveau };
+  return { redenen, niveau: Math.min(redenen.length, 4) as Niveau, militair: extraVan(plane)?.militair === true };
 };
 
 //! voor een vliegtuig dat (nog) niet in de Map staat: niets verdachts
-export const GEEN_BEOORDELING: Beoordeling = { redenen: [], niveau: 0 };
+// OUD: export const GEEN_BEOORDELING: Beoordeling = { redenen: [], niveau: 0 };
+export const GEEN_BEOORDELING: Beoordeling = { redenen: [], niveau: 0, militair: false };
 
 //! rekent bij elke aanroep de regels opnieuw uit, dus niet meer in de render gebruiken: gebruik de Map met beoordelingen uit App
 export const niveauVan = (plane: any): Niveau =>

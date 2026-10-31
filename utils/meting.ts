@@ -22,6 +22,12 @@ export const meting = {
   correctieMaxPx: 0,
   correctieZoom: 0,
   gesnapt: 0, //! zoveel vliegtuigen stonden te ver weg en zijn meteen goed gezet in plaats van uitgedoofd
+  //! dezelfde correctie, apart voor vliegtuigen die rechtdoor vlogen en die in het laatste stuk draaiden (fase 3, bochten voorspellen)
+  correctieRecht: { aantal: 0, mediaan: 0, p95: 0 },
+  correctieBocht: { aantal: 0, mediaan: 0, p95: 0 },
+  pakketten: 0, //! hoeveel pakketten de laag verwerkt heeft (wordt nooit teruggezet, voor het meetscript)
+  sporenGetekend: 0, //! hoeveel sporen er de laatste keer getekend zijn (fase 4)
+  spoorMs: 0, //! hoe lang die tekenbeurt duurde
   verouderd: 0, //! zoveel getekende vliegtuigen staan stil omdat ze langer dan de horizon geen nieuwe positie hadden
   snelstePx: 0, //! pixels per seconde van het snelste zichtbare vliegtuig: bepaalt hoe vaak de laag tekent
 };

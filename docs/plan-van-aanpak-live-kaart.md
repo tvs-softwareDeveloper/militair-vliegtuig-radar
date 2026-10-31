@@ -4,7 +4,7 @@
 
 - Datum: 30-10-2026
 - Stand van de code: commit `a1a9094` (main)
-- Status: **alleen plan, er is nog niets gebouwd**
+- Status: alle fasen af (fase 6 en 7 op 31-10-2026, persoonlijke laptop). Nog bij Tristan: T13 op een echte telefoon, T15, committen
 - Tristan commit en pusht zelf. Claude doet dat nooit.
 
 ---
@@ -398,7 +398,11 @@ Nieuw bestand: `src/componenten/GebiedCirkel.tsx`. Het vervangt de `<Circle>` in
 **Afwijkingen van het plan:**
 - **5.7 touch:** dubbel tikken en meteen slepen werkt (getest met nagebootste touch in Edge). Het alternatief "kruisje 500 ms vasthouden" was daardoor niet nodig. Een test op een echte telefoon blijft voor T13 in fase 7.
 - **Stand en dimmen:** komt er tijdens de wachttijd van 500 ms (vóór de aanvraag voor het nieuwe gebied) nog een gewoon pakket voor het oude gebied binnen, dan verdwijnen het dimmen en "Nieuw gebied laden…" iets te vroeg. Dat het paneel "bezig" bij elk pakket wist, deed het al. Klein, en niet opgelost.
+  - **Opgelost op 31-10-2026.** De server stuurt bij elk pakket mee voor welk gebied en welke bron het is (`gebied` in het tweede argument van `flights`). De app vergelijkt dat met wat hij het laatst gevraagd heeft. Een pakket van het oude gebied wordt nog getoond, maar "laden" en het dimmen blijven staan (`oudGebied` in `PakketTijd`).
+  - Getest met een pakket per seconde. Vóór de fix kwam er 5 van de 6 keer een oud pakket binnen, en alle 5 keer gingen "laden" en het dimmen te vroeg weg. Na de fix 0 van de 5.
 - **Datumgrens:** sleep je de cirkel over de datumgrens (±180°), dan staat hij soms op een andere kopie van de wereld dan de vliegtuigen. Niet opgelost.
+  - **Opgelost op 31-10-2026.** De laag zet elk vliegtuig op de kopie van de wereld die het dichtst bij het midden van de cirkel ligt (`zetMidden` en `middenX` in `vliegtuigCanvas.ts`). Dat werkt ook als de cirkel precies over de grens ligt. Klikken, de popup en naartoe vliegen gaan vanzelf mee.
+  - Getest met de cirkel op 180,8°. Vóór de fix stonden 329 van de 1.000 vliegtuigen in de cirkel, na de fix alle 1.000: 329 links en 671 rechts van de grens. Een klik op een vliegtuig voorbij de grens opent zijn popup.
 
 ### Fase 6: adsb.lol als tweede bron (alleen bij D6 = a of b)
 
@@ -414,6 +418,59 @@ Nieuw bestand: `src/componenten/GebiedCirkel.tsx`. Het vervangt de `<Circle>` in
 
 **Klaar als:** wisselen van bron werkt zonder herladen, en de waarden in de popup in dezelfde orde liggen als bij OpenSky (vergelijk 3 vliegtuigen naast elkaar).
 
+**Uitkomst fase 6 (31-10-2026, persoonlijke laptop): gebouwd en getest.** D6 = a (geen reactie = akkoord).
+
+**Wat er gebouwd is:**
+- **Server** (`dev-server.mjs`):
+  - `askAdsb` vraagt `/v2/point/lat/lon/NM` op, met de straal in zeemijl (max 250 NM) en een time-out van 10 s.
+  - `adsbAsState` zet elk vliegtuig om naar de OpenSky-volgorde. Omgerekend: voet naar meter, knopen naar m/s, voet/min naar m/s.
+  - De tijden: `time_position` is `now − seen_pos`, `last_contact` is `now − seen`.
+  - Ontbrekende of afwijkende velden: is `alt_baro` `"ground"`, dan staat het vliegtuig op de grond. `spi` (0 of 1) wordt true of false. Zonder `baro_rate` geldt `geom_rate`. Een mlat-positie krijgt positiebron 2.
+  - De bron is een keuze per app (socket-bericht `bron`). Elke bron heeft een eigen cache. Bij adsb.lol geeft de server nooit meer dan 450 km door, ook als de app meer vraagt.
+- **Index 17** is een extra object: `{ bron, type, registratie, militair, nood }`. `militair` komt uit `dbFlags & 1` (6.5), `nood` uit `emergency`. Beide worden nog niet gebruikt. OpenSky vult index 17 alleen met `extended=1`, en dat vragen we nooit.
+- **Standen bij adsb.lol:** 15 / 5 / 2 s, zonder tegoed.
+- **Fouten bij adsb.lol** (429, 5xx, time-out, of een antwoord zonder `ac`): de server wacht eerst 5 s en daarna 10 s. Bij de derde fout op rij gaan alle apps die op adsb.lol staan terug naar OpenSky. Ze krijgen dan het bericht `bron` met een melding, en die toont het paneel in oranje.
+- **Paneel:**
+  - een blok Bron met de knoppen OpenSky en adsb.lol, en een uitleg eronder;
+  - de keuze blijft in de browser (`radar.bron`);
+  - bij adsb.lol gaat de schuif tot 450 km, en een grotere straal wordt 450;
+  - de tooltips van de standen, de tegoedregel en de voettekst passen zich aan de bron aan.
+- **Popup:** zonder land toont hij het type en de registratie (bijvoorbeeld "RV8 · D-EXFL").
+- **Bronvermelding (6.4)** in de kaarthoek, wisselt mee met de bron:
+  - "data: OpenSky Network";
+  - "data: adsb.lol (ODbL)", met links.
+
+  De licentie is de Open Database License. Dat staat in hun repository `adsblol/globe_history_2025`.
+
+**Getest:**
+- **35 servercontroles** (`scratchpad/adsb/check6.mjs`), tegen een nep-adsb.lol en een nep-OpenSky (`nepbronnen.mjs`, via `ADSBLOL_API_URL`, `OPENSKY_API_URL` en `OPENSKY_TOKEN_URL`). Ze controleren:
+  - elke omrekening en elk ontbrekend veld;
+  - de straal in NM;
+  - de grens van 450 km;
+  - de standen, waarbij Snel echt elke 2 s vraagt en niet uit de cache komt;
+  - twee apps met hetzelfde gebied: één aanvraag;
+  - een eigen cache per bron;
+  - het wachten na een fout: 5,1 s en 10,1 s;
+  - terug naar OpenSky na 3 fouten;
+  - dat één fout de bron niet laat wisselen;
+  - het herstel na een fout.
+- **Live naast elkaar:** dezelfde 141 vliegtuigen rond Nederland in beide bronnen. Geo- en baro-hoogte, koers en verticale snelheid waren mediaan gelijk, de snelheid week 0,2 m/s af, en 139 van 141 squawks waren gelijk. De dreigingsregels krijgen dus dezelfde invoer. De posities van adsb.lol waren 0-0,3 s oud, die van OpenSky 1-2 s.
+- **Interface:** gecontroleerd in de browser met de echte bronnen:
+  - wisselen zonder herladen, ook vanaf 1000 km (wordt 450);
+  - de standen 15 / 5 / 2 s en de bronvermelding;
+  - de popup met type en registratie;
+  - de keuze blijft na herladen;
+  - terug naar OpenSky: schuif tot 1000 km, het tegoed en het land komen weer terug.
+
+**Gezien:** adsb.lol gaf één echte 429 in ongeveer 1,5 minuut op Normaal (5 s). De server wachtte 5 s en ging daarna vanzelf verder. Op Snel (2 s) komt dat waarschijnlijk vaker voor. Na 3 fouten op rij vangt OpenSky het op.
+
+**Aanvullingen op het plan:**
+- **Wachten bij een nieuwe verbinding.** De server wacht nu 150 ms voordat hij voor een nieuwe app de eerste aanvraag doet. In die tijd komen de keuzes van de app binnen (bron en stand). Eerst ging er bij elke herlaadbeurt een OpenSky-aanvraag uit, ook als de app adsb.lol of een andere stand wilde. Dat kostte 2 à 3 tegoed voor niets. Gecontroleerd: na het herladen met adsb.lol gaat er geen aanvraag meer naar OpenSky.
+- **Kleinere marge van de cache bij korte intervallen.** De cache-marge is nu `min(2 s, interval / 4)`, waar die eerst altijd 2 s was. Anders kwam Snel bij adsb.lol (2 s) altijd uit de cache. Voor OpenSky (5 s en langer) verandert er niets.
+- **Eigen User-Agent** voor adsb.lol: "vliegtuig-radar (hobby project)".
+
+**De OpenSky-key** staat nu ook op de persoonlijke laptop, in `.env` naast de server. Hij is gekopieerd uit de oude backendmap `C:\voorbereiding defensie\vliegtuig-radar\backend\.env`. De login is gecontroleerd: OpenSky geeft een token dat 30 minuten geldig is.
+
 ### Fase 7: meten, testen en README
 
 - **Model: Sonnet 5.5**: meten en documenteren volgens de lijst.
@@ -423,6 +480,53 @@ Nieuw bestand: `src/componenten/GebiedCirkel.tsx`. Het vervangt de `<Circle>` in
 | 7.1 | Dezelfde meting als in fase 0, nu met de nieuwe versie. De cijfers komen in hoofdstuk 8. |
 | 7.2 | De testlijst T1–T15 (hoofdstuk 7). Die test je zelf in de browser. |
 | 7.3 | README bijwerken: Gebruik (verversen, slepen, bron), het OpenSky-account met `.env`, Node ≥ 20.12, en de tabel met bestanden (inclusief de nieuwe). |
+
+**Uitkomst fase 7 (31-10-2026, persoonlijke laptop).** Gedaan met Opus 5.5 in plaats van Sonnet 5.5, want Tristan begon zonder te wisselen.
+
+**7.1, meten:**
+- Oud en nieuw zijn allebei op deze laptop gemeten, op dezelfde manier als in fase 0. De cijfers staan in hoofdstuk 8 (fase 7, eindmeting).
+- De nieuwe versie haalt 59-60 fps bij 1.000, 3.000 en 5.000 vliegtuigen. De oude haalt bij 5.000 vliegtuigen 0,2-3 fps.
+
+**7.2, testlijst.** Alles wat automatisch kon, is getest, met een eigen script in Playwright (`scratchpad/meten/check7.mjs`, `t7.mjs` en `check9.mjs`). Daarbij draaide een nep-bron van 1.000 vliegtuigen met een pakket elke 5 s, en voor T9 de echte OpenSky.
+
+| # | Uitkomst |
+|---|---|
+| T1 | ✓ 5.000 vliegtuigen: 60 / 60 / 59 fps (rust / pannen / zoomen), zie hoofdstuk 8 |
+| T2 | ✓ Ingezoomd op Schiphol (zoom 12): 6 van de 1.000 vliegtuigen getekend |
+| T3 | ✓ Uit beeld (4 s) en terug: het vliegtuig staat getekend op zijn berekende plek (alpha 255 op die pixel) |
+| T4 | ✓ Klik op een vliegtuig: popup met zijn ICAO en een witte ring; 3 s later staat de popup 0,000 px naast het vliegtuig |
+| T5 | ✓ Klik in de lijst: de popup gaat open, het filter op Normaal gaat eraf, en de kaart vliegt erheen (2 px van het midden) |
+| T6 | ✓ Filter "1 reden": 556 getekend, gelijk aan de teller in het paneel; filter eraf: 1.000 van 1.000 |
+| T7 | ✓ Rond 3 pakketten op zoom 10 verandert de stap per beeld hoogstens 0,013 px, dus geen sprong. De correctie rechtdoor is mediaan 0,00 px (p95 1,0). De enige grote sprongen (7) zijn precies de 7 vliegtuigen die de laag bewust meteen goed zet: nep-vliegtuigen die aan de overkant van de cirkel terugkomen |
+| T8 | ✓ Server uit: "Geen verbinding", en geen fouten in de pagina. Na 60 s staan 954 van de 954 bewegende vliegtuigen stil en half doorzichtig. Server weer aan: weer "Live" en alles beweegt |
+| T9 | ✓ Met de echte key. Het paneel en de terminal kloppen: Zuinig elke 60 s (120 per uur), Normaal elke 20 s (360), Snel elke 5 s (1.440), steeds 2 tegoed per aanvraag. Het tegoed in het paneel is gelijk aan de log |
+| T10 | ✓ Dubbelklik op de rand en slepen: de cirkel gaat van 5,29° naar 3,98° oost, de kaart blijft precies staan, en de server vraagt het nieuwe gebied op |
+| T11 | ✓ Esc tijdens slepen zet de cirkel terug; een dubbelklik ergens anders zoomt van 7 naar 8 |
+| T12 | ✓ Twee tabs met hetzelfde gebied: 3 aanvragen in 15,5 s bij elke 5 s (twee losse tabs zouden ±6 geven) |
+| T13 | ✓ Nagebootste touch: dubbel tikken op de rand en doorschuiven verplaatst de cirkel, en de kaart blijft staan. **Nog niet getest op een echte telefoon** |
+| T14 | ✓ In fase 6 (wisselen, schuif tot 450 km, waarden gelijk aan OpenSky) |
+| T15 | **Niet getest.** Een tab bevriezen (`Page.setWebLifecycleState`) doet niets in de headless Chromium: de hartslag in de pagina liep gewoon door. Dit test je zelf in een echte browser: zet de radar 5 min op een ander tabblad en kom terug |
+
+**Wat onderweg opviel:**
+- **Bij de eerste T9-run** vroeg de server op Zuinig elke 20 s op, terwijl het paneel 60 s zei. Oorzaak: een oud tabblad uit de test van fase 6 stond nog open en had ook verbinding met de server, op de standaard Normaal. Dat is geen fout in de app. Wel goed om te weten: **elk open tabblad met de radar is een eigen kijker**. Staat dat op een ander gebied of een snellere stand, dan kost het ook tegoed. Na het sluiten van dat tabblad klopte alles.
+- **Drie tests faalden eerst door fouten in de test zelf**, niet in de app:
+  - de callsign plakte in de lijst vast aan "3 redenen";
+  - Leaflets `latLngToContainerPoint` rondt af op hele pixels, wat al √2 px "sprong" gaf;
+  - bij T15 telde de teller ook de 5 minuten tijdens het (niet gelukte) bevriezen.
+- **Browsers:** de volledige Chromium van Playwright start niet vanuit Claude's omgeving op deze laptop (`spawn UNKNOWN`), de headless shell wel. Met `--use-angle=d3d11` gebruikt die de echte Intel-videokaart, zonder die vlag tekent hij in software (SwiftShader).
+
+**7.3, README:**
+- Node 20.12 of nieuwer, met de reden erbij.
+- Bij Gebruik: de cirkel verslepen, de bron, kiezen en loslaten van een vliegtuig, en wat er gebeurt met vliegtuigen zonder nieuwe positie.
+- Een nieuw blok "Meten en testen": de nep-bron, `?meten`, `--poort` en `VITE_SERVER`.
+- De tabel met bestanden is compleet, met de nieuwe bestanden en de oude markers als "niet meer in gebruik, maar bewaard".
+- Het blok "Versies" klopte niet meer: de tak `interface-vernieuwd` bestaat niet meer, alles staat op `main`.
+
+**Nog voor Tristan:**
+- T13 op een echte telefoon.
+- T15: 5 minuten een ander tabblad, dan terug.
+- Kijken of het er voor je gevoel soepel uitziet.
+- Committen en pushen.
 
 ---
 
@@ -437,8 +541,8 @@ Nieuw bestand: `src/componenten/GebiedCirkel.tsx`. Het vervangt de `<Circle>` in
 - [x] **Fase 4a**: server (account, verversstanden, tegoed, B1–B3) · **Model: Opus 5.5** · *zonder key te bouwen en te testen; de echte-key-controle (T9, stand Snel) volgt thuis* · af 30-10-2026, 21 controles tegen een nep-OpenSky + 41 van fase 3 slagen
 - [x] **Fase 4b**: paneelblok Verversen · **Model: Sonnet 5.5** · af 30-10-2026 (gebouwd met Opus 5.5), 12 UI-controles + 21 server + 41 kaart slagen
 - [x] **Fase 5**: bereikcirkel verslepen · **Model: Opus 5.5** · af 30-10-2026, 22 controles (build + dev) + regressie 41 + 12, popup-bug uit fase 2 opgelost
-- [ ] **Fase 6**: adsb.lol als tweede bron (D6) · **Model: Opus 5.5**
-- [ ] **Fase 7**: meten, testen en README · **Model: Sonnet 5.5**
+- [x] **Fase 6**: adsb.lol als tweede bron (D6) · **Model: Opus 5.5** · af 31-10-2026, 35 servercontroles tegen nep-bronnen, live vergeleken (141 vliegtuigen, waarden gelijk), interface in de browser gecontroleerd
+- [x] **Fase 7**: meten, testen en README · **Model: Sonnet 5.5** · af 31-10-2026 (gedaan met Opus 5.5), oud en nieuw gemeten op de persoonlijke laptop (5.000 vliegtuigen: 0,2-3 → 59-60 fps), 14 van T1-T15 automatisch getest en goed, T15 en een echte telefoon (T13) nog bij Tristan
 
 **Volgorde:** 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7. Fase 2, 3 en 5 raken alle drie `MapDashboard.tsx`, dus ze kunnen niet tegelijk. Fase 4a (alleen de server) kan wel parallel aan fase 2 of 3.
 
@@ -498,9 +602,28 @@ Nieuw bestand: `src/componenten/GebiedCirkel.tsx`. Het vervangt de `<Circle>` in
 | 1.000 | na fase 3 | 60 (17 ms) | 60 (17 ms) | 60 (19 ms) | gem 3,6 · max 5,1 | 1.000/1.000 |
 | 3.000 | na fase 3 | 60 (17 ms) | 60 (33 ms) | 60 (17 ms) | gem 5,8 · max 14 | 3.000/3.000 |
 | 5.000 | na fase 3 | 60 (33 ms) | 59 (33 ms) | 60 (34 ms) | gem 21 · max 33 | 5.000/5.000 |
-| 1.000 | nieuw | | | | | |
-| 3.000 | nieuw | | | | | |
-| 5.000 | nieuw | | | | | |
+
+**Fase 7, eindmeting (31-10-2026, persoonlijke laptop).** De rijen "nieuw" van hierboven staan hieronder. Deze laptop heeft andere hardware dan de werklaptop, dus de oude versie (`a1a9094`) is hier opnieuw gemeten, op precies dezelfde manier. Alleen oud en nieuw op dezelfde laptop zijn met elkaar te vergelijken.
+
+| Nep-vliegtuigen | Versie | fps in rust | fps pannen | fps zoomen | teken-ms | zichtbaar/totaal |
+|---|---|---|---|---|---|---|
+| 1.000 | oud | 47 (283 ms) | 44 (317 ms) | 17,5 (600 ms) | – | alles |
+| 3.000 | oud | 10 (4.283 ms) | 0,6 (4.850 ms) | 0,5 (17.249 ms) | – | alles |
+| 5.000 | oud | 3,2 (10.516 ms) | 0,2 (11.400 ms) | 0,3 (10.333 ms) | – | alles |
+| 1.000 | nieuw | 60 (17 ms) | 60 (17 ms) | 59 (100 ms) | gem 1,6 · max 3,5 | 1.000/1.000 |
+| 3.000 | nieuw | 60 (17 ms) | 60 (17 ms) | 59 (67 ms) | gem 5,1 · max 15,8 | 3.000/3.000 |
+| 5.000 | nieuw | 60 (17 ms) | 60 (17 ms) | 59 (67 ms) | gem 10,5 · max 15,5 | 5.000/5.000 |
+
+**Zo is gemeten:**
+- Opzet: productiebuild en `vite preview`, met 1440×900, de kaarttegels geblokkeerd, en de nep-bron met `--elke 10`. Rust is 12 s, pannen is 8 s een rondje slepen, en zoomen is 3 stappen in en 3 uit met het scrollwiel. Dat is dezelfde opzet als in fase 0.
+- Fps en het traagste beeld (tussen haakjes) komen uit één teller per beeld, voor beide versies hetzelfde. Teken-ms komt uit de meter.
+- Browser: de headless Chromium van Playwright met de echte videokaart (Intel UHD, via D3D11). De volledige Chromium en Edge starten niet vanuit Claude's omgeving op deze laptop.
+- Scripts: `scratchpad/meten/meten.mjs` en `alles.ps1`.
+
+**Wat het laat zien:**
+- **Fps:** de nieuwe versie haalt 59-60 fps bij elk aantal vliegtuigen. De oude zakt bij 3.000 vliegtuigen naar 0,5-10 fps, en bij 5.000 naar 0,2-3. Bij 5.000 vliegtuigen tijdens pannen is dat ±300 keer zo snel.
+- **Teken-ms:** een volledige tekenbeurt met 5.000 vliegtuigen in beeld kost hier gemiddeld 10,5 ms. Op de werklaptop was dat 21-22 ms. Het doel van ≤ 4 ms uit fase 2 is daarmee nog steeds niet gehaald, maar dat merk je niet: de laag tekent niet elk beeld (20 tekenbeurten in 12 s rust), en slepen en zoomen schuiven of schalen het canvas.
+- **Zoomen:** het traagste beeld is 67-100 ms. Dat is het ene beeld waarin na de zoomanimatie alles opnieuw getekend wordt. Daarna gaat het weer met 60 fps.
 
 ---
 
@@ -517,6 +640,7 @@ Nieuw bestand: `src/componenten/GebiedCirkel.tsx`. Het vervangt de `<Circle>` in
 ## 10. Taken voor Tristan
 
 1. **OpenSky-key (niet blokkerend).** Je hebt een account met key op je eigen laptop. Die hoef je niet mee te nemen: fase 0 tot en met 7 kunnen zonder (zie hieronder). Thuis zet je de client id en het secret in `.env` (zie `.env.example`, komt in fase 4a) en doe je **één controle**: de stand "Snel" met het echte account (T9). Dat kost 10 minuten.
+   - **31-10-2026:** de key staat in `.env` op de persoonlijke laptop, gekopieerd uit de oude backendmap, en de login werkt. Alleen T9 zelf moet nog.
 2. Antwoorden op de besluiten D1–D6, maar alleen waar je iets anders wilt dan het advies.
 3. Testen met T1–T15.
 4. Committen en pushen.

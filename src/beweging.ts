@@ -27,3 +27,40 @@ export const koersVerschil = (van: number, naar: number) => ((((van - naar) % 36
 
 //! hoe lang een vliegtuig zonder nieuwe positie nog doorvliegt (D2): minstens een minuut, en anderhalf keer het verversinterval
 export const horizonVan = (intervalSeconden: number) => Math.max(60, 1.5 * intervalSeconden);
+
+// ---- bochten (fase 3 van het tweede plan) ----
+
+export const MAX_DRAAI = 3; //! graden per seconde: de gewone bocht van een verkeersvliegtuig ("standard rate turn"). meer is meetruis
+export const MIN_DRAAI = 0.1; //! langzamer dan dit rekenen we gewoon rechtdoor
+//! zo lang (seconden na de positie uit het pakket) draait de voorspelling mee, daarna rechtdoor. een echte bocht houdt op: zonder
+//! grens draait een vliegtuig dat net uit de bocht kwam in de voorspelling eindeloos door. gekozen met metingen op echte data (fase 3)
+// OUD: export const BOCHT_SECONDEN = 30;
+export const BOCHT_SECONDEN = 15;
+
+//! een geschatte of gemeten draaisnelheid netjes maken: begrensd, en heel langzaam = rechtdoor (0)
+export const netteDraai = (draai: number | null | undefined) => {
+  if (typeof draai !== "number" || !Number.isFinite(draai) || Math.abs(draai) < MIN_DRAAI) return 0;
+  return Math.max(-MAX_DRAAI, Math.min(MAX_DRAAI, draai));
+};
+
+//! hoeveel een vliegtuig verschoven en gedraaid is na t seconden, in wereldeenheden. snelheid = de lengte van de wereldsnelheid,
+//! koers in graden, draai in graden per seconde. eerst een boog met vaste draaisnelheid, na bochtSeconden rechtdoor verder.
+//! de boog: de koers loopt op met draai × t, en de positie volgt de cirkel die daarbij hoort (y loopt in de wereld naar het zuiden)
+export const verschuiving = (snelheid: number, koers: number, draai: number, t: number, bochtSeconden = BOCHT_SECONDEN) => {
+  const r = Math.PI / 180;
+  if (draai === 0 || bochtSeconden <= 0) {
+    return { dx: Math.sin(koers * r) * snelheid * t, dy: -Math.cos(koers * r) * snelheid * t, koers };
+  }
+  const tb = Math.min(t, bochtSeconden); //! zo lang in de bocht
+  const w = draai * r; //! radialen per seconde
+  const a = koers * r;
+  const b = a + w * tb; //! de koers aan het eind van de bocht
+  let dx = (snelheid / w) * (Math.cos(a) - Math.cos(b));
+  let dy = (snelheid / w) * (Math.sin(a) - Math.sin(b)); //! de integraal van -cos: noord is min
+  if (t > tb) {
+    //! daarna rechtdoor op de nieuwe koers
+    dx += Math.sin(b) * snelheid * (t - tb);
+    dy -= Math.cos(b) * snelheid * (t - tb);
+  }
+  return { dx, dy, koers: koers + draai * tb };
+};
