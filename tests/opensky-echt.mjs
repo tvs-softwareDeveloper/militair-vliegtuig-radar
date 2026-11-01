@@ -25,7 +25,8 @@ export default async function openskyTests(check) {
     // de aanvragen in de log van de server: tijdstip en tegoed dat over is
     const aanvragen = () =>
       server.regels
-        .map((r) => r.match(/^(\d\d):(\d\d):(\d\d)\s+250 km: \d+ vliegtuigen, tegoed (\d+)/))
+        // OUD: .map((r) => r.match(/^(\d\d):(\d\d):(\d\d)\s+250 km: \d+ vliegtuigen, tegoed (\d+)/))
+        .map((r) => r.match(/^(\d\d):(\d\d):(\d\d)\s+250 km[^:]*: \d+ vliegtuigen, tegoed (\d+)/))
         .filter(Boolean)
         .map((m) => ({ sec: +m[1] * 3600 + +m[2] * 60 + +m[3], over: +m[4] }));
 

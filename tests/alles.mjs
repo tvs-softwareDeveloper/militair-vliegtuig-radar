@@ -8,6 +8,8 @@ import militairTests from './militair.mjs';
 import straalTests from './straal.mjs';
 import bochtTests from './bochten.mjs';
 import sporenTests from './sporen.mjs';
+import binnenlandTests from './binnenland.mjs';
+import wereldTests from './wereld.mjs';
 
 const { check, telling } = uitslag();
 const begin = Date.now();
@@ -17,6 +19,7 @@ console.log('bouwen…');
 const dist = bouw('app-test', `http://127.0.0.1:${SERVER_POORT}`);
 
 for (const [naam, test] of [
+  ['binnenland (de reden "vliegt Nederland in")', () => binnenlandTests(check)],
   ['server (adsb.lol, nep-bronnen)', () => serverTests(check)],
   ['kaart (testlijst T2-T13)', () => kaartTests(check, { dist })],
   ['bugs (fase 5, opgelost 31-10)', () => bugTests(check, { dist })],
@@ -24,6 +27,7 @@ for (const [naam, test] of [
   ['straal (fase 2, tweede plan)', () => straalTests(check, { dist })],
   ['bochten (fase 3, tweede plan)', () => bochtTests(check, { dist })],
   ['sporen (fase 4, tweede plan)', () => sporenTests(check, { dist })],
+  ['wereld (straal tot 3000 km, Hele wereld, scrollbalk)', () => wereldTests(check, { dist })],
 ]) {
   console.log(`\n== ${naam}`);
   const voor = { ...telling };

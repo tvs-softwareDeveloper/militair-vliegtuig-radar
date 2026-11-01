@@ -13,6 +13,7 @@ export const meting = {
   hertekend: 0, //! aantal tekenbeurten (de meter zet hem elke seconde terug op 0)
   pulsMsMax: 0, //! langste tekenbeurt van de pulsringen sinds de meter dit voor het laatst las
   zichtbaar: 0, //! hoeveel vliegtuigen de laatste keer getekend zijn, de rest viel buiten beeld (frustum culling) of door het filter
+  puntjes: false, //! de laatste tekenbeurt tekende puntjes in plaats van plaatjes (meer dan PUNTJES_VANAF in beeld)
   totaal: 0, //! hoeveel vliegtuigen de laag kent
 
   //! gegist bestek: hoe ver de voorspelling ernaast zat toen het laatste pakket binnenkwam, in pixels op de zoom van dat moment

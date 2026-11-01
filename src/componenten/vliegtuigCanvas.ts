@@ -61,6 +61,11 @@ const HOEKEN = 72; //! het icoon staat klaar in stappen van 5 graden, net als he
 const STAP_PX = 0.5; //! pas opnieuw tekenen als het snelste zichtbare vliegtuig zoveel pixels verder is
 const MAX_WACHT_MS = 2000; //! en hoe dan ook minstens zo vaak, zolang er iets beweegt (bijvoorbeeld een vliegtuig dat zijn horizon haalt)
 const ICOON_STRAAL = 10; //! afstand van het midden tot de neus, om een draaiing om te rekenen naar verschoven pixels
+//! meer vliegtuigen in beeld dan dit (de hele wereld, ver uitgezoomd): een gekleurd puntje in plaats van een plaatje. één drawImage
+//! kost ±7 µs, 10.000 plaatjes dus ±60 ms per beeld (30 fps). puntjes gaan per kleur in één pad: 10.000 kosten ±2 ms (gemeten 01-11-2026).
+//! militaire toestellen en het gekozen vliegtuig blijven een plaatje, dat zijn er weinig
+const PUNTJES_VANAF = 5000;
+const PUNTJE = 3; //! css-pixels
 
 //! één vliegtuig zoals de laag het onthoudt. posities zijn wereldcoördinaten (Web-Mercator op zoom 0): die rekenen we één keer per
 //! pakket uit, daarna kost een schermpositie per beeld nog maar een vermenigvuldiging en een aftrekking, zonder sin of log
@@ -225,6 +230,7 @@ export class VliegtuigCanvas extends L.Layer {
   private sporen = new Map<string, Spoor>();
   private volgorde: Spoor[] = []; //! laag niveau eerst, zo liggen de verdachtste vliegtuigen bovenop
   private alarm: Spoor[] = []; //! niveau 3 en hoger: die krijgen een pulsring
+  private inBeeld: Spoor[] = []; //! de vliegtuigen van de laatste tekenbeurt die in beeld stonden (steeds dezelfde lijst, geen nieuwe per beeld)
   private filter: Niveau | null = null;
   private alleenMilitair = false; //! filter "alleen militair", samen te gebruiken met het filter op niveau
   private gekozenId: string | null = null;
@@ -802,8 +808,25 @@ export class VliegtuigCanvas extends L.Layer {
       return px;
     };
 
+    // OUD: for (const s of this.volgorde) {
+    // OUD:   if (this.verborgen(s)) continue;
+    // OUD:   positie(s, nu, sec, horizon);
+    // OUD:   if (s.id === this.gekozenId) { gekozen = s; continue; }
+    // OUD:   const cx = s.x * schaal - ox;
+    // OUD:   const cy = s.y * schaal - oy;
+    // OUD:   if (cx < -m || cy < -m || cx > b + m || cy > h + m) continue;
+    // OUD:   let alpha = s.oud ? 0.5 : 1;
+    // OUD:   if (voorlopig && …) alpha *= 0.35;
+    // OUD:   … tekenVliegtuig(ctx, atlas, s, cx, cy, d) met die alpha …
+    // OUD:   if (s.oud) verouderd++;
+    // OUD:   zichtbaar++;
+    // OUD:   const px = tempo(s);
+    // OUD:   if (px > snelstePx) snelstePx = px;
+    // OUD: }
+    //! eerst kijken wie er in beeld staat, dan pas tekenen: bij meer dan PUNTJES_VANAF worden het puntjes
+    const inBeeld = this.inBeeld;
+    inBeeld.length = 0;
     for (const s of this.volgorde) {
-      // OUD: if (this.filter !== null && s.niveau !== this.filter) continue;
       if (this.verborgen(s)) continue;
       positie(s, nu, sec, horizon);
       if (s.id === this.gekozenId) {
@@ -814,29 +837,50 @@ export class VliegtuigCanvas extends L.Layer {
       const cy = s.y * schaal - oy;
       //! frustum culling: buiten het canvas (beeld + marge) tekenen we niets, en telt hij ook niet mee voor het tempo
       if (cx < -m || cy < -m || cx > b + m || cy > h + m) continue;
-      // OUD: if (s.oud) {
-      // OUD:   ctx.globalAlpha = 0.5; //! al te lang geen nieuwe positie: half doorzichtig
-      // OUD:   tekenVliegtuig(ctx, atlas, s.niveau, s.hoek, cx, cy, d);
-      // OUD:   ctx.globalAlpha = 1;
-      // OUD:   verouderd++;
-      // OUD: } else {
-      // OUD:   tekenVliegtuig(ctx, atlas, s.niveau, s.hoek, cx, cy, d);
-      // OUD: }
+      inBeeld.push(s);
+    }
+    const puntjes = inBeeld.length > PUNTJES_VANAF;
+    //! puntjes: één pad per niveau, per "verouderd" en per "gedimd" (dan één fill per pad in plaats van een drawImage per vliegtuig)
+    const paden: (Path2D | undefined)[] = [];
+    const maat = Math.max(2, Math.round(PUNTJE * d));
+
+    for (const s of inBeeld) {
+      const cx = s.x * schaal - ox;
+      const cy = s.y * schaal - oy;
       //! half doorzichtig: al te lang geen nieuwe positie. extra gedimd: buiten het gebied waar de cirkel net naartoe is gesleept
-      let alpha = s.oud ? 0.5 : 1;
-      if (voorlopig && (s.x - voorlopig.x) ** 2 + (s.y - voorlopig.y) ** 2 > voorlopig.r2) alpha *= 0.35;
-      if (alpha < 1) {
-        ctx.globalAlpha = alpha;
-        tekenVliegtuig(ctx, atlas, s, cx, cy, d);
-        ctx.globalAlpha = 1;
+      const dim = voorlopig !== null && (s.x - voorlopig.x) ** 2 + (s.y - voorlopig.y) ** 2 > voorlopig.r2;
+      if (puntjes && !s.militair) {
+        const k = s.niveau * 4 + (s.oud ? 1 : 0) + (dim ? 2 : 0);
+        (paden[k] ??= new Path2D()).rect(Math.round(cx * d - maat / 2), Math.round(cy * d - maat / 2), maat, maat);
       } else {
-        tekenVliegtuig(ctx, atlas, s, cx, cy, d);
+        const alpha = (s.oud ? 0.5 : 1) * (dim ? 0.35 : 1);
+        if (alpha < 1) {
+          ctx.globalAlpha = alpha;
+          tekenVliegtuig(ctx, atlas, s, cx, cy, d);
+          ctx.globalAlpha = 1;
+        } else {
+          tekenVliegtuig(ctx, atlas, s, cx, cy, d);
+        }
       }
       if (s.oud) verouderd++;
       zichtbaar++;
       const px = tempo(s);
       if (px > snelstePx) snelstePx = px;
     }
+    if (puntjes) {
+      //! onder de militaire plaatjes (die zijn al getekend): daarom met destination-over erachter. laag niveau eerst, verdachtst bovenop
+      ctx.globalCompositeOperation = "destination-over";
+      for (let k = paden.length - 1; k >= 0; k--) {
+        const pad = paden[k];
+        if (!pad) continue;
+        ctx.globalAlpha = (k & 1 ? 0.5 : 1) * (k & 2 ? 0.35 : 1);
+        ctx.fillStyle = kleurVan((k >> 2) as Niveau);
+        ctx.fill(pad);
+      }
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha = 1;
+    }
+    meting.puntjes = puntjes;
 
     //! minder beweging aan (besturingssysteem): een vaste ring in plaats van een kloppende
     if (this.rustigeBeweging) {

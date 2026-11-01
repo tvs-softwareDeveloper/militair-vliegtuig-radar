@@ -21,7 +21,8 @@ type Props = {
   onVerplaatst: (punt: Punt) => void; //! losgelaten op een nieuwe plek
   onVoorlopig?: (gebied: Gebied) => void; //! het nieuwe gebied, nog voor er data is (de vliegtuigen erbuiten worden gedimd)
   onStraal?: (km: number) => void; //! de rand losgelaten op een nieuwe straal
-  maxKm?: number; //! 1000, of 450 bij adsb.lol
+  // OUD: maxKm?: number; //! 1000, of 450 bij adsb.lol
+  maxKm?: number; //! 3000, of 450 bij adsb.lol
 };
 
 const RAND_PX = 12; //! zo dicht bij de rand telt als "op de rand"
@@ -43,7 +44,8 @@ const VERPLAATS: L.PathOptions = { ...RUST, weight: 2, opacity: 1, fillOpacity: 
 type Modus = "rust" | "hover" | "klaar" | "slepen" | "straal" | "beslis";
 
 // OUD: const GebiedCirkel = ({ midden, straal, onVerplaatst, onVoorlopig }: Props) => {
-const GebiedCirkel = ({ midden, straal, onVerplaatst, onVoorlopig, onStraal, maxKm = 1000 }: Props) => {
+// OUD: const GebiedCirkel = ({ midden, straal, onVerplaatst, onVoorlopig, onStraal, maxKm = 1000 }: Props) => {
+const GebiedCirkel = ({ midden, straal, onVerplaatst, onVoorlopig, onStraal, maxKm = 3000 }: Props) => {
   const map = useMap();
   //! altijd de nieuwste props en callbacks, de listeners hieronder worden maar één keer gemaakt
   // OUD: const props = useRef({ midden, straal, onVerplaatst, onVoorlopig });

@@ -67,7 +67,10 @@ export default async function straalTests(check, { dist } = {}) {
     const tijdens = await stand();
     check('M5 tijdens het slepen: de cirkel wordt groter, met een label in km', tijdens.km > s0.km && new RegExp(`${Math.round(tijdens.km)} km`).test(tijdens.label), `${s0.km} -> ${tijdens.km} km, label "${tijdens.label}"`);
     check('M5 tijdens het slepen: stappen van 25 km', tijdens.km % 25 === 0, `${tijdens.km} km`);
-    check('M5 tijdens het slepen: geen aanvraag bij de server', aanvragen().length === voorSlepen);
+    // OUD: check('M5 tijdens het slepen: geen aanvraag bij de server', aanvragen().length === voorSlepen);
+    // (de gewone verversing van het oude gebied, elke 5 s, viel soms in die ±1,2 s en telde dan mee. het gaat om de nieuwe straal)
+    const tijdensSlepen = aanvragen().slice(voorSlepen);
+    check('M5 tijdens het slepen: geen aanvraag voor een nieuwe straal', tijdensSlepen.every((km) => km === s0.km), `aanvragen: ${tijdensSlepen.join(', ') || 'geen'}`);
     await page.mouse.up();
     await wacht(300);
     const los = await stand();
@@ -117,7 +120,9 @@ export default async function straalTests(check, { dist } = {}) {
 
     // grens: niet groter dan 1000 km
     await zoom7();
-    await page.evaluate(() => window.__s.kaart().setZoom(5, { animate: false }));
+    // OUD: await page.evaluate(() => window.__s.kaart().setZoom(5, { animate: false }));
+    // (sinds 01-11 gaat de straal tot 3000 km: op zoom 5 haalt 600 px slepen dat niet)
+    await page.evaluate(() => window.__s.kaart().setZoom(3, { animate: false }));
     await wacht(800);
     const s3 = await stand();
     await page.mouse.dblclick(s3.x, s3.y);
@@ -126,7 +131,8 @@ export default async function straalTests(check, { dist } = {}) {
     for (let i = 1; i <= 20; i++) await page.mouse.move(Math.min(s3.x + 30 * i, 1430), s3.y);
     const groot = await stand();
     await page.mouse.up();
-    check('grens: hoogstens 1000 km', groot.km === 1000, `${groot.km} km`);
+    // OUD: check('grens: hoogstens 1000 km', groot.km === 1000, `${groot.km} km`);
+    check('grens: hoogstens 3000 km', groot.km === 3000, `${groot.km} km`);
 
     // M7: bij adsb.lol tot 450 km
     await page.locator('[aria-label="Bron van de posities"] button', { hasText: 'adsb.lol' }).click();

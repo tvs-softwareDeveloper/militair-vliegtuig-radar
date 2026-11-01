@@ -44,7 +44,8 @@ createServer((req, res) => {
     res.end(JSON.stringify(log));
     return;
   }
-  log.push({ tijd: Date.now(), pad: url.pathname, ua: req.headers['user-agent'] });
+  // OUD: log.push({ tijd: Date.now(), pad: url.pathname, ua: req.headers['user-agent'] });
+  log.push({ tijd: Date.now(), pad: url.pathname, zoek: url.search, ua: req.headers['user-agent'] }); // zoek: het vak bij opensky
   // de militaire lijst: het opensky-vliegtuig bbb001 staat erop, en een adres met ~ (geen echt icao-adres) dat de server moet overslaan
   if (url.pathname === '/v2/mil') {
     if (milMode === '500') {
@@ -94,8 +95,12 @@ createServer((req, res) => {
     return;
   }
   if (url.pathname === '/api/states/all') {
-    const lat = (Number(url.searchParams.get('lamin')) + Number(url.searchParams.get('lamax'))) / 2;
-    const lon = (Number(url.searchParams.get('lomin')) + Number(url.searchParams.get('lomax'))) / 2;
+    // OUD: const lat = (Number(url.searchParams.get('lamin')) + Number(url.searchParams.get('lamax'))) / 2;
+    // OUD: const lon = (Number(url.searchParams.get('lomin')) + Number(url.searchParams.get('lomax'))) / 2;
+    // zonder vak (de hele wereld) staat het vliegtuig ergens boven afrika
+    const heel = !url.searchParams.has('lamin');
+    const lat = heel ? 10 : (Number(url.searchParams.get('lamin')) + Number(url.searchParams.get('lamax'))) / 2;
+    const lon = heel ? 20 : (Number(url.searchParams.get('lomin')) + Number(url.searchParams.get('lomax'))) / 2;
     const t = Math.floor(Date.now() / 1000);
     res.setHeader('content-type', 'application/json');
     res.setHeader('x-rate-limit-remaining', '3999');

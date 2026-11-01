@@ -238,7 +238,9 @@ export default async function kaartTests(check, { dist } = {}) {
       await wacht(800);
       const z1 = await t(() => window.__t.kaart().getZoom());
       check('T11 dubbelklik elders zoomt in', z1 === z0 + 1, `zoom ${z0} -> ${z1}`);
-      await page.locator('aside button', { hasText: 'Nederland' }).last().click();
+      // OUD: await page.locator('aside button', { hasText: 'Nederland' }).last().click();
+      // (sinds de reden "vliegt Nederland in" raakte dat een vliegtuig in de lijst "Meest verdacht", niet de knop)
+      await page.getByRole('button', { name: 'Nederland', exact: true }).click();
       await wacht(2500);
     }
 
@@ -246,9 +248,11 @@ export default async function kaartTests(check, { dist } = {}) {
     {
       const tweede = await radarPagina(context, URL, { minVliegtuigen: 900, fouten });
       const voor = nepRegels();
+      const alleVoor = server.regels.length;
       await wacht(15500);
       const regels = nepRegels() - voor;
-      check('T12 twee tabs met hetzelfde gebied: één aanvraag per interval', regels >= 2 && regels <= 4, `${regels} aanvragen in 15,5 s bij elke 5 s (twee los zou ±6 zijn)`);
+      const erbij = server.regels.slice(alleVoor).join(' | ');
+      check('T12 twee tabs met hetzelfde gebied: één aanvraag per interval', regels >= 2 && regels <= 4, `${regels} aanvragen in 15,5 s bij elke 5 s (twee los zou ±6 zijn)${regels > 4 ? `: ${erbij}` : ''}`);
       await tweede.close();
     }
 

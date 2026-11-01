@@ -18,7 +18,14 @@ try {
 
 const START = { lat: 52.13, lon: 5.29, km: 250 }; // middle of the netherlands
 const MIN_KM = 25;
-const MAX_KM = 1000;
+// OUD: const MAX_KM = 1000;
+// bigger: 3000 km from the netherlands is all of europe. a bigger circle can reach over a pole, and leaflet can't draw that as a
+// circle anymore. for more there is the whole world
+const MAX_KM = 3000;
+// the whole world: half the earth's circumference, every point on earth is closer than this. an area with this radius is the
+// whole world, wherever its centre is (the app keeps its own centre, for when you go back to a circle)
+const WERELD_KM = 20050;
+const isWereld = (area) => area.km >= WERELD_KM;
 
 // --nep <count> [--elke <seconds>]: fake flights instead of opensky, so measuring costs no credits.
 // the same count always gives the same planes (seeded), so two measurements can be compared
@@ -251,16 +258,49 @@ function adsbFout(waarom) {
 }
 
 // the box around the circle, opensky only knows boxes
+// OUD: function boxAround({ lat, lon, km }) {
+// OUD:   const dLat = km / 111.32;
+// OUD:   const dLon = km / (111.32 * Math.cos((lat * Math.PI) / 180));
+// OUD:   return { lamin: Math.max(lat - dLat, -90), lamax: Math.min(lat + dLat, 90), lomin: lon - dLon, lomax: lon + dLon, squareDegrees: 4 * dLat * dLon };
+// OUD: }
+// (fine up to 1000 km around the netherlands, but a bigger circle can go over the date line, where lomin or lomax falls outside
+// -180..180, or over a pole, where dLon is more than the whole earth. opensky wants lomin < lomax inside -180..180)
 function boxAround({ lat, lon, km }) {
   const dLat = km / 111.32;
   const dLon = km / (111.32 * Math.cos((lat * Math.PI) / 180));
+  const lamin = Math.max(lat - dLat, -90);
+  const lamax = Math.min(lat + dLat, 90);
+  // around a pole, or over the date line: every longitude. that's the whole band of latitudes (same credits, a box this big costs
+  // 4 anyway), the distance filter after the answer keeps only the circle
+  const elkeLengte = lamin <= -90 || lamax >= 90 || lon - dLon < -180 || lon + dLon > 180;
+  const lomin = elkeLengte ? -180 : lon - dLon;
+  const lomax = elkeLengte ? 180 : lon + dLon;
   return {
-    lamin: Math.max(lat - dLat, -90),
-    lamax: Math.min(lat + dLat, 90),
-    lomin: lon - dLon,
-    lomax: lon + dLon,
-    squareDegrees: 4 * dLat * dLon,
+    lamin,
+    lamax,
+    lomin,
+    lomax,
+    squareDegrees: (lamax - lamin) * (lomax - lomin), // the same as 4 * dLat * dLon for a box that isn't cut off
+    heel: lamin <= -90 && lamax >= 90 && elkeLengte, // the whole earth: then opensky is asked without a box
   };
+}
+
+// the point at some km from (lat, lon) in a direction (degrees, 0 = north), over the surface of the earth
+function puntOp(lat, lon, km, richting) {
+  const d = km / 6371;
+  const b = richting * (Math.PI / 180);
+  const f1 = lat * (Math.PI / 180);
+  const f2 = Math.asin(Math.sin(f1) * Math.cos(d) + Math.cos(f1) * Math.sin(d) * Math.cos(b));
+  const l2 = lon * (Math.PI / 180) + Math.atan2(Math.sin(b) * Math.sin(d) * Math.cos(f1), Math.cos(d) - Math.sin(f1) * Math.sin(f2));
+  return { lat: f2 / (Math.PI / 180), lon: ((((l2 / (Math.PI / 180)) + 540) % 360) + 360) % 360 - 180 };
+}
+
+// the direction (degrees, 0 = north) from the first point to the second
+function richtingNaar(lat1, lon1, lat2, lon2) {
+  const rad = Math.PI / 180;
+  const y = Math.sin((lon2 - lon1) * rad) * Math.cos(lat2 * rad);
+  const x = Math.cos(lat1 * rad) * Math.sin(lat2 * rad) - Math.sin(lat1 * rad) * Math.cos(lat2 * rad) * Math.cos((lon2 - lon1) * rad);
+  return Math.atan2(y, x) / rad;
 }
 
 // distance in km between two points on the earth
@@ -317,7 +357,11 @@ async function getToken(fresh = false) {
 async function askOpensky(area) {
   const lijst = ververstMilitair(); // at the same time as the flights, not after them
   const box = boxAround(area);
-  const url = `${OPENSKY_API}/states/all?lamin=${box.lamin}&lomin=${box.lomin}&lamax=${box.lamax}&lomax=${box.lomax}`;
+  // OUD: const url = `${OPENSKY_API}/states/all?lamin=${box.lamin}&lomin=${box.lomin}&lamax=${box.lamax}&lomax=${box.lomax}`;
+  // the whole earth: no box at all, that's every plane opensky has (4 credits, like every box over 400 square degrees)
+  const url = box.heel
+    ? `${OPENSKY_API}/states/all`
+    : `${OPENSKY_API}/states/all?lamin=${box.lamin}&lomin=${box.lomin}&lamax=${box.lamax}&lomax=${box.lomax}`;
   const ask = (key) => fetch(url, { headers: key ? { Authorization: `Bearer ${key}` } : {} });
   let key = await getToken();
   let response = await ask(key);
@@ -358,7 +402,9 @@ const io = new Server(server, { cors: { origin: '*' } });
 
 // last answer per area, so two apps with the same area cost one call
 const answers = new Map();
-const keyOf = ({ lat, lon, km }) => `${lat.toFixed(2)},${lon.toFixed(2)},${km}`;
+// OUD: const keyOf = ({ lat, lon, km }) => `${lat.toFixed(2)},${lon.toFixed(2)},${km}`;
+// the whole world is one area, whatever centre the app keeps: two apps on the whole world share one request
+const keyOf = ({ lat, lon, km }) => (km >= WERELD_KM ? 'wereld' : `${lat.toFixed(2)},${lon.toFixed(2)},${km}`);
 // the same area from another source is another answer
 const answerKey = (area, bron) => `${NEP ? 'nep' : bron}|${keyOf(area)}`;
 const running = new Map(); // area -> the request that is running for it now
@@ -391,8 +437,16 @@ function makeFleet(area) {
   const random = seeded(NEP);
   const planes = [];
   for (let i = 0; i < NEP; i++) {
-    const dist = Math.sqrt(random()) * area.km * 1000; // sqrt keeps the density even
-    const angle = random() * 2 * Math.PI;
+    // OUD: const dist = Math.sqrt(random()) * area.km * 1000; // sqrt keeps the density even
+    // OUD: const angle = random() * 2 * Math.PI;
+    // OUD: (and lat/lon below as a flat offset from the centre: fine for 1000 km, but 3000 km or the whole world doesn't fit on a flat map)
+    const u = random();
+    const v = random();
+    // the whole world: evenly over the earth up to 80 degrees north and south (further north the map stops at 85).
+    // otherwise evenly over the circle (sqrt keeps the density even), over the surface of the earth
+    const plek = isWereld(area)
+      ? { lat: Math.asin((2 * u - 1) * Math.sin(80 * RAD)) / RAD, lon: v * 360 - 180 }
+      : puntOp(area.lat, area.lon, Math.sqrt(u) * area.km, v * 360);
     const kind = random();
     const onGround = kind < 0.04;
     let speed;
@@ -417,8 +471,10 @@ function makeFleet(area) {
       callsign: anonymous ? null : `NEP${String(1000 + Math.floor(random() * 9000))}`,
       country: COUNTRIES[Math.floor(random() * COUNTRIES.length)],
       squawk: anonymous ? null : Math.floor(random() * 4096).toString(8).padStart(4, '0'),
-      lat: area.lat + (dist * Math.cos(angle)) / M_PER_DEGREE,
-      lon: area.lon + (dist * Math.sin(angle)) / (M_PER_DEGREE * Math.cos(area.lat * RAD)),
+      // OUD: lat: area.lat + (dist * Math.cos(angle)) / M_PER_DEGREE,
+      // OUD: lon: area.lon + (dist * Math.sin(angle)) / (M_PER_DEGREE * Math.cos(area.lat * RAD)),
+      lat: plek.lat,
+      lon: plek.lon,
       speed,
       track: random() * 360,
       turn: random() < 0.2 ? (random() - 0.5) * 3 : 0, // degrees per second, a fifth of them are turning
@@ -458,10 +514,26 @@ function advanceFleet(fleet, area, now) {
     p.track = (((p.track + p.turn * seconds) % 360) + 360) % 360;
     p.lat += weg.north / M_PER_DEGREE;
     p.lon += weg.east / (M_PER_DEGREE * Math.cos(p.lat * RAD));
+    p.lon = ((((p.lon + 180) % 360) + 360) % 360) - 180;
+    // the whole world: there is no edge, only the north and south. past 80 degrees the plane turns back (the map stops at 85)
+    if (isWereld(area)) {
+      if (Math.abs(p.lat) > 80) {
+        p.lat = Math.sign(p.lat) * 160 - p.lat;
+        p.track = (((180 - p.track) % 360) + 360) % 360;
+      }
+      continue;
+    }
     // out of the circle: come back in on the other side, so the number of planes stays the same
-    if (distanceKm(area.lat, area.lon, p.lat, p.lon) > area.km) {
-      p.lat = area.lat - 0.97 * (p.lat - area.lat);
-      p.lon = area.lon - 0.97 * (p.lon - area.lon);
+    // OUD: if (distanceKm(area.lat, area.lon, p.lat, p.lon) > area.km) {
+    // OUD:   p.lat = area.lat - 0.97 * (p.lat - area.lat);
+    // OUD:   p.lon = area.lon - 0.97 * (p.lon - area.lon);
+    // OUD: }
+    // (mirrored in degrees: on a big circle the other side can still be outside, then the plane jumped back and forth every answer)
+    const afstand = distanceKm(area.lat, area.lon, p.lat, p.lon);
+    if (afstand > area.km) {
+      const terug = puntOp(area.lat, area.lon, 0.97 * Math.min(afstand, area.km), richtingNaar(area.lat, area.lon, p.lat, p.lon) + 180);
+      p.lat = terug.lat;
+      p.lon = terug.lon;
     }
   }
 }
@@ -657,7 +729,11 @@ async function flightsFor(area, waitMs, bron = 'opensky') {
   const last = answers.get(key);
   // OUD: if (last && now - last.time < waitMs - 2000) return last;
   // (2 s slack is fine for opensky's 5 to 120 s, but adsb.lol 'snel' is every 2 s: then it would always come from the cache)
-  if (last && now - last.time < waitMs - Math.min(2000, waitMs / 4)) return last;
+  // OUD: if (last && now - last.time < waitMs - Math.min(2000, waitMs / 4)) return last;
+  // (with that slack a second app on the same area only shared the answer if its clock was less than ¾ of the interval behind;
+  // otherwise both asked, and two tabs cost twice the opensky credits. now every app times its next request from the answer it
+  // got (see send), so all apps on one area ask at the same moment and share one request. an answer younger than the interval is fine)
+  if (last && now - last.time < waitMs - 100) return last;
   // OUD: if (!NEP && now < tegoed.pauzeTot) return last ?? EMPTY;
   // credits used up: don't ask until opensky allows it again, keep the last flights. same after an error at adsb.lol
   if (!NEP && now < (bron === 'adsblol' ? adsb.pauzeTot : tegoed.pauzeTot)) return last ?? EMPTY;
@@ -687,7 +763,11 @@ async function askFor(area, key, bron) {
     // OUD: console.log(`${new Date().toLocaleTimeString()}  ${NEP ? 'nep ' : ''}${area.km} km: ${fresh.flights.length} vliegtuigen${credits}`);
     const credits = NEP || bron !== 'opensky' ? '' : `, tegoed ${tegoed.over ?? '?'}${account ? ' (account)' : ''}`;
     const naam = NEP ? 'nep ' : bron === 'adsblol' ? 'adsb.lol ' : '';
-    console.log(`${new Date().toLocaleTimeString()}  ${naam}${area.km} km: ${fresh.flights.length} vliegtuigen${credits}`);
+    // OUD: console.log(`${new Date().toLocaleTimeString()}  ${naam}${area.km} km: ${fresh.flights.length} vliegtuigen${credits}`);
+    // with the centre: two apps on different areas of the same size looked the same in the log
+    // OUD: console.log(`${new Date().toLocaleTimeString()}  ${naam}${area.km} km rond ${area.lat.toFixed(2)},${area.lon.toFixed(2)}: ${fresh.flights.length} vliegtuigen${credits}`);
+    const waar = isWereld(area) ? 'hele wereld' : `${area.km} km rond ${area.lat.toFixed(2)},${area.lon.toFixed(2)}`;
+    console.log(`${new Date().toLocaleTimeString()}  ${naam}${waar}: ${fresh.flights.length} vliegtuigen${credits}`);
     return answer;
   } catch (error) {
     console.log(`${bron} not reachable:`, error.message);
@@ -747,7 +827,11 @@ async function send(socket) {
   // OUD: const waitMs = Math.max(seconden * 1000, NEP ? 0 : tegoed.pauzeTot - Date.now() + 1000);
   // (for adsb.lol: when the wait after an error is over)
   const pauze = NEP ? 0 : bron === 'adsblol' ? adsb.pauzeTot : tegoed.pauzeTot;
-  const waitMs = Math.max(seconden * 1000, pauze - Date.now() + (bron === 'adsblol' ? 100 : 1000));
+  // OUD: const waitMs = Math.max(seconden * 1000, pauze - Date.now() + (bron === 'adsblol' ? 100 : 1000));
+  // the interval counts from when the answer was fetched, not from now: an app that got an answer from the cache (another app
+  // on the same area asked it) then asks again at the same moment as that other app, and they share one request
+  const leeftijd = answer.time ? Date.now() - answer.time : 0;
+  const waitMs = Math.max(seconden * 1000 - leeftijd + 50, 250, pauze - Date.now() + (bron === 'adsblol' ? 100 : 1000));
   socket.data.timer = setTimeout(() => send(socket), waitMs);
 }
 
@@ -782,7 +866,9 @@ io.on('connection', (socket) => {
     // OUD: const lat = Math.min(Math.max(Number(wish?.lat) || START.lat, -85), 85);
     // OUD: const lon = ((((Number(wish?.lon) || START.lon) + 180) % 360) + 360) % 360 - 180;
     // (|| made a latitude or longitude of exactly 0 the middle of the netherlands)
-    const km = Math.round(Math.min(Math.max(numberOr(wish?.km, START.km), MIN_KM), MAX_KM));
+    // OUD: const km = Math.round(Math.min(Math.max(numberOr(wish?.km, START.km), MIN_KM), MAX_KM));
+    // wereld: true = every plane on earth ("Hele wereld" in the panel). the centre stays the app's own
+    const km = wish?.wereld === true ? WERELD_KM : Math.round(Math.min(Math.max(numberOr(wish?.km, START.km), MIN_KM), MAX_KM));
     const lat = Math.min(Math.max(numberOr(wish?.lat, START.lat), -85), 85);
     const lon = ((((numberOr(wish?.lon, START.lon) + 180) % 360) + 360) % 360) - 180;
     socket.data.area = { lat, lon, km };
@@ -830,6 +916,7 @@ server.listen(PORT, () => {
   if (NEP) console.log(`nep: ${NEP} fake planes, new answer every ${NEP_EVERY} s, opensky is not called`);
   else if (account) console.log('opensky: with the api client from .env (more credits, new data every 5 s)');
   else console.log('opensky: anonymous (400 credits a day, new data every 10 s). an api client in .env gives more, see .env.example');
+  if (!NEP) console.log(`opensky: up to ${MAX_KM} km, or the whole world (every plane opensky has, 4 credits a request)`);
   if (process.env.OPENSKY_API_URL) console.log(`opensky address changed to ${OPENSKY_API}`);
   if (!NEP) console.log('adsb.lol: second source, pick it in the panel (no key, no credits, up to 450 km)');
   if (process.env.ADSBLOL_API_URL) console.log(`adsb.lol address changed to ${ADSB_API}`);

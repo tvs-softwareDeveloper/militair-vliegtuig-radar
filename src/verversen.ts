@@ -22,11 +22,16 @@ export type Verversing = {
 export type Bron = "opensky" | "adsblol";
 
 export const BRONNEN: { bron: Bron; naam: string; uitleg: string }[] = [
-  { bron: "opensky", naam: "OpenSky", uitleg: "OpenSky Network: met tegoed, tot 1000 km. Met land van herkomst." },
+  // OUD: { bron: "opensky", naam: "OpenSky", uitleg: "OpenSky Network: met tegoed, tot 1000 km. Met land van herkomst." },
+  { bron: "opensky", naam: "OpenSky", uitleg: "OpenSky Network: met tegoed, tot 3000 km of de hele wereld. Met land van herkomst." },
   { bron: "adsblol", naam: "adsb.lol", uitleg: "adsb.lol: geen tegoed, posities vaak minder dan een seconde oud, tot 450 km. Zonder land, wel type en registratie." },
 ];
 
 export const ADSB_MAX_KM = 450; //! adsb.lol kan max 250 zeemijl (463 km), de schuif stopt op 450
+//! opensky: tot 3000 km (heel europa vanuit nederland). een grotere cirkel kan over een pool gaan, en die tekent Leaflet niet meer als cirkel
+export const MAX_KM = 3000;
+//! "Hele wereld": de halve omtrek van de aarde, elk punt ligt dichterbij. de server kent hetzelfde getal (dev-server.mjs)
+export const WERELD_KM = 20050;
 
 //! de seconden per stand bij adsb.lol staan bij de knoppen (van de server), dit is de tooltip
 export const ADSB_UITLEG: Record<Stand, string> = {

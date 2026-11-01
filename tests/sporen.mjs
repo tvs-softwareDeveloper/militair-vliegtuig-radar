@@ -30,6 +30,7 @@ export default async function sporenTests(check, { dist } = {}) {
           oudsteS: Math.max(...s.filter((x) => x.pad.length).map((x) => (nu - x.pad[2]) / 1000)),
           metSpoor: s.filter((x) => x.pad.length >= 9).length,
           zoom: l.kaart.getZoom(),
+          route: l.vluchtPad !== null, // de gestippelde route van het gekozen vliegtuig staat op hetzelfde vlak
         };
       });
     const zet = (zoom) => t((z) => window.__vliegtuigLaag.kaart.setView([52.13, 5.29], z, { animate: false }), zoom);
@@ -80,7 +81,10 @@ export default async function sporenTests(check, { dist } = {}) {
     await schakelaar.click();
     await wacht(800);
     const uit = await stand();
-    check('schakelaar "Sporen" uit: geen sporen meer', uit.getekend === 0 && uit.pixels === 0 && uit.maxPunten === 0, `${uit.getekend} sporen, ${uit.maxPunten} punten`);
+    // OUD: check('schakelaar "Sporen" uit: geen sporen meer', uit.getekend === 0 && uit.pixels === 0 && uit.maxPunten === 0, `${uit.getekend} sporen, ${uit.maxPunten} punten`);
+    // (de route van het gekozen vliegtuig staat op hetzelfde vlak en blijft, die hoort niet bij de schakelaar. of hij in beeld valt hangt
+    // af van waar de nep-vliegtuigen staan: sinds 01-11 staan ze over het aardoppervlak verdeeld, en toen viel hij wel in beeld)
+    check('schakelaar "Sporen" uit: geen sporen meer', uit.getekend === 0 && uit.maxPunten === 0 && (uit.pixels === 0 || uit.route), `${uit.getekend} sporen, ${uit.maxPunten} punten, ${uit.pixels} pixels${uit.route ? ' (route van het gekozen vliegtuig)' : ''}`);
     await page.reload();
     await page.waitForFunction(() => window.__vliegtuigLaag && (window.__teller?.totaal ?? 0) > 900, null, { timeout: 30000 });
     check('schakelaar onthouden na herladen', (await schakelaar.textContent()) === 'Uit');

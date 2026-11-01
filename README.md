@@ -1,6 +1,6 @@
 # Vliegtuigradar
 
-Live kaart van het luchtruim rond Nederland. Elk vliegtuig krijgt een dreigingsniveau op basis van verdacht gedrag: hoge snelheid, geen callsign of squawk, lage hoogte, een actief noodsignaal, een koers richting het binnenland of een snelle stijging of daling. De posities komen live van het [OpenSky Network](https://opensky-network.org) of, als je dat kiest, van [adsb.lol](https://adsb.lol).
+Live kaart van het luchtruim rond Nederland. Elk vliegtuig krijgt een dreigingsniveau op basis van verdacht gedrag: hoge snelheid, geen callsign of squawk, lage hoogte, een actief noodsignaal, een koers die het vliegtuig binnen 10 minuten Nederland in brengt, of een snelle stijging of daling. De posities komen live van het [OpenSky Network](https://opensky-network.org) of, als je dat kiest, van [adsb.lol](https://adsb.lol).
 
 Gebouwd met React, TypeScript, Vite, Tailwind CSS, Leaflet en Socket.IO.
 
@@ -37,10 +37,12 @@ Stoppen doe je met `Ctrl+C` in beide terminals.
 
 ## Gebruik
 
-- **Bereik:** met de schuif in het paneel kies je de straal, van 25 tot 1000 km (bij adsb.lol tot 450 km). Standaard is dat 250 km rond het midden van Nederland. Met **Midden van de kaart** wordt het midden van de kaart het nieuwe middelpunt, en **Nederland** zet het terug.
+- **Bereik:** met de schuif in het paneel kies je de straal, van 25 tot 3000 km (bij adsb.lol tot 450 km). Standaard is dat 250 km rond het midden van Nederland. Met **Midden van de kaart** wordt het midden van de kaart het nieuwe middelpunt, en **Nederland** zet het terug. Groter dan 3000 km kan niet: zo'n cirkel kan over een pool gaan, en die tekent de kaart niet meer als cirkel.
+- **Hele wereld:** de knop **Hele wereld** toont alle vliegtuigen op aarde die OpenSky ziet, zonder cirkel (bij een test op 01-11-2026: 11.215). De kaart zoomt uit tot de hele aarde. Zo'n aanvraag kost 4 tegoed, dus OpenSky ververst minder vaak (Normaal: elke 40 s). adsb.lol kan dit niet (alleen tot 250 zeemijl rond een punt): kies je **Hele wereld** bij adsb.lol, dan gaat de radar naar OpenSky en zegt hij dat in het paneel. Schuif je de straal of kies je een midden, dan is het weer een cirkel.
+- **Veel vliegtuigen in beeld:** staan er meer dan 5.000 vliegtuigen in beeld, dan tekent de kaart gekleurde puntjes in plaats van vliegtuigjes. Dat is ±10 keer sneller, zodat de kaart vlot blijft (60 fps met 10.000 vliegtuigen). Militaire toestellen en het gekozen vliegtuig blijven een vliegtuigje. Zoom je in, dan komen de vliegtuigjes terug.
 - **Cirkel verslepen of groter maken:** dubbelklik op de rand van de cirkel of op het kruisje in het midden. Daarna:
   - sleep binnenin om de cirkel ergens anders heen te zetten;
-  - sleep de rand om de straal te veranderen. Er staat dan een pijl op de rand, en een label met de km. De straal gaat in stappen van 25 km, tot 1000 km (450 km bij adsb.lol).
+  - sleep de rand om de straal te veranderen. Er staat dan een pijl op de rand, en een label met de km. De straal gaat in stappen van 25 km, tot 3000 km (450 km bij adsb.lol).
 
   Laat je los, dan haalt de server de vliegtuigen van het nieuwe gebied op, en de kaart blijft staan. De schuif in het paneel loopt mee. Met `Esc` zet je alles terug. Een dubbelklik ergens anders zoomt gewoon in.
 
@@ -82,11 +84,13 @@ OpenSky werkt met tegoed. Elke aanvraag kost 1 tot 4 punten: hoe groter het gebi
 
 De stand bij **Verversen** is een budget in tegoed per uur, dus een groter gebied ververst vanzelf minder vaak:
 
-| Stand | Tegoed per uur | tot ±200 km | 250 km | 600 km | 1000 km |
+| Stand | Tegoed per uur | tot ±200 km | 250 km | 600 km | 1000 km of meer, en de hele wereld |
 |---|---|---|---|---|---|
 | Zuinig | 120 | 30 s | 60 s | 90 s | 120 s |
 | Normaal | 360 | 10 s | 20 s | 30 s | 40 s |
 | Snel | zo veel als nodig | 10 s (5 s met account) | 10 s (5 s) | 10 s (5 s) | 10 s (5 s) |
+
+Een vak van meer dan 400 vierkante graden kost bij OpenSky 4 tegoed, net als de hele wereld. Daarom kosten 1000 km, 3000 km en de hele wereld per aanvraag evenveel. Over de datumgrens of een pool vraagt de server de hele band van breedtegraden op, en houdt hij daarna alleen de cirkel over.
 
 - **Hoe lang je het volhoudt:** zonder account houd je het met Zuinig ruim 3 uur per dag vol, met Normaal ruim een uur.
 - **Standaardstand:** zonder account Zuinig, met account Normaal.
@@ -109,7 +113,7 @@ Hiervoor is Node.js 20.12 of nieuwer nodig. Klopt de key niet, dan meldt de serv
 | | OpenSky | adsb.lol |
 |---|---|---|
 | Tegoed | 400 per dag, of 4.000 met een account | geen |
-| Bereik | tot 1000 km | tot 450 km |
+| Bereik | tot 3000 km, of de hele wereld | tot 450 km |
 | Zuinig / Normaal / Snel | zie de tabel hierboven | 15 s / 5 s / 2 s |
 | In de popup | land van herkomst | type en registratie (bijvoorbeeld "B738 · PH-BXA") |
 
@@ -138,7 +142,7 @@ De tests staan in `tests/` en gebruiken [Playwright](https://playwright.dev) met
 
 | Opdracht | Wat | Duur | Kost tegoed |
 |---|---|---|---|
-| `npm run check` | Alle tests die niets kosten: de server met nep-adsb.lol en nep-OpenSky, de kaart (testlijst T2-T13), de twee bugs uit fase 5, de militaire herkenning, de straal slepen, de bochten en de sporen | ±10 min | nee |
+| `npm run check` | Alle tests die niets kosten: de server met nep-adsb.lol en nep-OpenSky, de kaart (testlijst T2-T13), de twee bugs uit fase 5, de militaire herkenning, de straal slepen, de bochten, de sporen, en de grote straal met de hele wereld | ±11 min | nee |
 | `npm run check:opensky` | T9 met de echte OpenSky: kloppen het interval en het tegoed in het paneel met de terminal van de server? | ±4 min | ja, ±40 met een account |
 | `npm run meten` | De meting: fps in rust, tijdens pannen en tijdens zoomen, met 1.000, 3.000 en 5.000 nep-vliegtuigen. `node tests/meten.mjs --versie a1a9094` meet ook een oudere commit, zodat je oud en nieuw op dezelfde laptop vergelijkt; `--aantallen 1000` meet alleen dat aantal | ±5 min | nee |
 
@@ -170,6 +174,7 @@ Voor de bochten is er een eigen meting: `node tests/bochten.mjs`. Die vergelijkt
 | `src/verversen.ts` | De verversstanden en de bronnen, en wat de kijker gekozen heeft (onthouden in de browser) |
 | `src/dreiging.ts` | De dreigingsniveaus met hun namen en kleuren |
 | `utils/planeUtils.ts` | De regels voor verdacht gedrag |
+| `utils/binnenland.ts` | De grens van Nederland (Natural Earth, vereenvoudigd tot ±1 km) en de regel "vliegt Nederland in" |
 | `services/socket.ts` | De verbinding met de server |
 | `src/componenten/Meter.tsx`, `src/meten.ts`, `utils/meting.ts` | De meter (`?meten`) en zijn tellers |
 | `src/componenten/PlaneMarker.tsx`, `src/componenten/planeIcons.tsx` | De oude vliegtuigen als losse markers. Niet meer in gebruik sinds de canvaslaag, maar bewaard |

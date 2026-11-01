@@ -11,6 +11,7 @@ import type { PakketTijd } from "./componenten/vliegtuigCanvas";
 import {
   ADSB_MAX_KM,
   GEEN_VERVERSING,
+  WERELD_KM,
   bewaarBron,
   bewaarSporen,
   bewaarStand,
@@ -59,6 +60,7 @@ export default function App() {
   //! het bekeken gebied: een middelpunt en een straal in km
   const [midden, setMidden] = useState<Punt>(NEDERLAND);
   const [straal, setStraal] = useState(250);
+  const [wereld, setWereld] = useState(false); //! "Hele wereld": alle vliegtuigen op aarde in plaats van de cirkel (midden en straal blijven bewaard)
   const [kaartMidden, setKaartMidden] = useState<Punt>(NEDERLAND);
   const [seconden, setSeconden] = useState(30); //! hoe vaak de server ververst
   const [bezig, setBezig] = useState(false); //! nieuw gebied gevraagd, nog geen antwoord
@@ -162,17 +164,40 @@ export default function App() {
   const eersteKeer = useRef(true);
   useEffect(() => {
     //! meteen onthouden, niet pas na de 500 ms: een pakket dat in die tijd binnenkomt is al van het oude gebied
-    wensRef.current = { ...wensRef.current, lat: midden[0], lon: midden[1], km: straal };
+    // OUD: wensRef.current = { ...wensRef.current, lat: midden[0], lon: midden[1], km: straal };
+    //! bij de hele wereld stuurt de server WERELD_KM terug als straal
+    wensRef.current = { ...wensRef.current, lat: midden[0], lon: midden[1], km: wereld ? WERELD_KM : straal };
     if (eersteKeer.current) {
       eersteKeer.current = false;
       return;
     }
     setBezig(true);
     const wacht = setTimeout(() => {
-      socketRef.current?.emit("gebied", { lat: midden[0], lon: midden[1], km: straal });
+      // OUD: socketRef.current?.emit("gebied", { lat: midden[0], lon: midden[1], km: straal });
+      socketRef.current?.emit("gebied", { lat: midden[0], lon: midden[1], km: straal, wereld });
     }, 500);
     return () => clearTimeout(wacht);
-  }, [midden, straal]);
+  // OUD: }, [midden, straal]);
+  }, [midden, straal, wereld]);
+
+  //! "Hele wereld" aan of uit. adsb.lol heeft geen lijst van de hele wereld (max 250 zeemijl rond een punt), dus dan naar OpenSky
+  const kiesWereld = (aan: boolean) => {
+    setWereld(aan);
+    if (aan && bronRef.current === "adsblol") {
+      kiesBron("opensky");
+      setBronMelding("De hele wereld kan alleen met OpenSky: adsb.lol gaat tot 450 km.");
+    }
+  };
+
+  //! een straal of midden kiezen in het paneel is weer een cirkel: de hele wereld gaat uit
+  const kiesStraal = (km: number) => {
+    setWereld(false);
+    setStraal(km);
+  };
+  const kiesMidden = (punt: Punt) => {
+    setWereld(false);
+    setMidden(punt);
+  };
 
   //! kiezen in de lijst: filter eraf als het vliegtuig anders niet op de kaart staat
   const kies = (id: string) => {
@@ -205,6 +230,7 @@ export default function App() {
     setBezig(true); //! "Nieuw gebied laden…" tot de vliegtuigen van de nieuwe bron er zijn
     socketRef.current?.emit("bron", { bron: nieuw });
     if (nieuw === "adsblol" && straal > ADSB_MAX_KM) setStraal(ADSB_MAX_KM);
+    if (nieuw === "adsblol") setWereld(false); //! adsb.lol kan de hele wereld niet, dan weer de cirkel
   };
 
   //! de schakelaar "Sporen"
@@ -247,10 +273,15 @@ export default function App() {
         verbonden={verbonden}
         laatsteUpdate={laatsteUpdate}
         straal={straal}
-        setStraal={setStraal}
+        // OUD: setStraal={setStraal}
+        // OUD: gebruikKaartMidden={() => setMidden(kaartMidden)}
+        // OUD: terugNaarNederland={() => setMidden(NEDERLAND)}
+        setStraal={kiesStraal}
         rondNederland={midden === NEDERLAND}
-        gebruikKaartMidden={() => setMidden(kaartMidden)}
-        terugNaarNederland={() => setMidden(NEDERLAND)}
+        gebruikKaartMidden={() => kiesMidden(kaartMidden)}
+        terugNaarNederland={() => kiesMidden(NEDERLAND)}
+        wereld={wereld}
+        kiesWereld={kiesWereld}
         seconden={seconden}
         bezig={bezig}
         verversing={verversing}
@@ -277,6 +308,7 @@ export default function App() {
           onKies={kiesOpKaart}
           midden={midden}
           straal={straal}
+          wereld={wereld}
           onKaartMidden={setKaartMidden}
           onMiddenGesleept={setMidden}
           onStraalGesleept={setStraal}

@@ -8,6 +8,7 @@ import {
   ADSB_MAX_KM,
   ADSB_UITLEG,
   BRONNEN,
+  MAX_KM,
   STANDEN,
   duurTekst,
   type Bron,
@@ -30,6 +31,8 @@ type Props = {
   rondNederland: boolean;
   gebruikKaartMidden: () => void;
   terugNaarNederland: () => void;
+  wereld: boolean; //! "Hele wereld" staat aan: alle vliegtuigen op aarde, geen cirkel
+  kiesWereld: (aan: boolean) => void;
   seconden: number; //! hoe vaak de server ververst
   bezig: boolean;
   verversing: Verversing; //! de stand en wat hij kost, van de server
@@ -60,6 +63,8 @@ const StatusPanel = ({
   rondNederland,
   gebruikKaartMidden,
   terugNaarNederland,
+  wereld,
+  kiesWereld,
   seconden,
   bezig,
   verversing,
@@ -75,7 +80,8 @@ const StatusPanel = ({
 }: Props) => {
   const beoordeling = (p: any) => beoordelingen.get(p[0]) ?? GEEN_BEOORDELING;
   const adsb = bron === "adsblol";
-  const maxKm = adsb ? ADSB_MAX_KM : 1000; //! adsb.lol kan niet verder dan 450 km
+  // OUD: const maxKm = adsb ? ADSB_MAX_KM : 1000; //! adsb.lol kan niet verder dan 450 km
+  const maxKm = adsb ? ADSB_MAX_KM : MAX_KM; //! adsb.lol kan niet verder dan 450 km
 
   //! alle tellers in één ronde langs de vliegtuigen, en alleen opnieuw bij een nieuw pakket (niet bij het schuiven van de straal)
   // OUD: const inDeLucht = planes.filter((p) => !p[8]);
@@ -112,7 +118,9 @@ const StatusPanel = ({
   }, [planes, beoordelingen]);
 
   return (
-    <aside className="flex flex-col gap-5 border-slate-800 bg-slate-950 p-5 text-slate-200 md:h-full md:w-80 md:shrink-0 md:overflow-y-auto md:border-r">
+    // OUD: <aside className="flex flex-col gap-5 border-slate-800 bg-slate-950 p-5 text-slate-200 md:h-full md:w-80 md:shrink-0 md:overflow-y-auto md:border-r">
+    //! radar-scroll: de scrollbalk in de stijl van de radar (index.css)
+    <aside className="radar-scroll flex flex-col gap-5 border-slate-800 bg-slate-950 p-5 text-slate-200 md:h-full md:w-80 md:shrink-0 md:overflow-y-auto md:border-r">
       {/* titel met een radarstraal die rustig rondgaat */}
       <header className="flex items-center gap-3">
         <div className="radar relative h-11 w-11 shrink-0 rounded-full border border-emerald-500/50" aria-hidden="true">
@@ -122,7 +130,8 @@ const StatusPanel = ({
         <div>
           <h1 className="text-xl font-bold tracking-tight text-white">Vliegtuigradar</h1>
           <p className="text-xs text-slate-400">
-            Live luchtruim · {straal} km {rondNederland ? "rond Nederland" : "rond eigen punt"}
+            {/* OUD: Live luchtruim · {straal} km {rondNederland ? "rond Nederland" : "rond eigen punt"} */}
+            Live luchtruim · {wereld ? "hele wereld" : `${straal} km ${rondNederland ? "rond Nederland" : "rond eigen punt"}`}
           </p>
         </div>
       </header>
@@ -155,7 +164,8 @@ const StatusPanel = ({
       <section>
         <div className="mb-2 flex items-baseline justify-between">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Bereik</h2>
-          <span className="font-mono text-sm text-white">{straal} km</span>
+          {/* OUD: <span className="font-mono text-sm text-white">{straal} km</span> */}
+          <span className="font-mono text-sm text-white">{wereld ? "hele wereld" : `${straal} km`}</span>
         </div>
         {/* OUD: max={1000} */}
         <input
@@ -166,7 +176,9 @@ const StatusPanel = ({
           value={straal}
           onChange={(e) => setStraal(Number(e.target.value))}
           aria-label="Straal in kilometer"
-          className="w-full accent-emerald-400"
+          // OUD: className="w-full accent-emerald-400"
+          //! bij de hele wereld wat lichter: de straal geldt dan niet, schuiven maakt er weer een cirkel van
+          className={`w-full accent-emerald-400 ${wereld ? "opacity-40" : ""}`}
         />
         {/* OUD: <span>25</span> <span>500</span> <span>1000 km</span> */}
         <div className="mt-1 flex justify-between font-mono text-[10px] text-slate-500">
@@ -175,7 +187,10 @@ const StatusPanel = ({
           <span>{maxKm} km</span>
         </div>
         {/* OUD: Rond … · elke {seconden} s ververst (hoe vaak staat nu bij Verversen) */}
-        <p className="mt-2 text-xs text-slate-400">Rond {rondNederland ? "het midden van Nederland" : "een eigen punt"}</p>
+        {/* OUD: <p className="mt-2 text-xs text-slate-400">Rond {rondNederland ? "het midden van Nederland" : "een eigen punt"}</p> */}
+        <p className="mt-2 text-xs text-slate-400">
+          {wereld ? "Alle vliegtuigen op aarde die OpenSky nu ziet" : `Rond ${rondNederland ? "het midden van Nederland" : "een eigen punt"}`}
+        </p>
         {/* hoe je de cirkel verplaatst (GebiedCirkel.tsx) */}
         {/* OUD: Dubbelklik op de rand van de cirkel om hem te verslepen. */}
         <p className="mt-1 text-[11px] text-slate-500">
@@ -197,6 +212,22 @@ const StatusPanel = ({
             </button>
           )}
         </div>
+        {/* alle vliegtuigen op aarde. alleen OpenSky kan dat (zonder vak: 4 tegoed per keer), adsb.lol gaat tot 450 km */}
+        <button
+          onClick={() => kiesWereld(!wereld)}
+          aria-pressed={wereld}
+          title="Alle vliegtuigen op aarde die OpenSky nu ziet. Kost 4 tegoed per verversing."
+          className={`mt-2 w-full rounded-md border px-2 py-1.5 text-xs transition ${
+            wereld ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-300" : "border-slate-700 text-slate-200 hover:bg-slate-900"
+          }`}
+        >
+          Hele wereld
+        </button>
+        {wereld && (
+          <p className="mt-1 text-[11px] text-slate-500">
+            Duizenden vliegtuigen tegelijk. Kost 4 tegoed per verversing, dus OpenSky ververst minder vaak. Schuif de straal voor weer een cirkel.
+          </p>
+        )}
       </section>
 
       {/* bron: waar de posities vandaan komen. opensky is de standaard, adsb.lol is gratis en sneller maar gaat maar tot 450 km */}
@@ -222,7 +253,8 @@ const StatusPanel = ({
         <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
           {adsb
             ? "Geen tegoed nodig en posities van vaak minder dan een seconde oud. Tot 450 km, zonder land van herkomst."
-            : "Met tegoed, tot 1000 km. adsb.lol is gratis en sneller, maar gaat tot 450 km."}
+            // OUD: : "Met tegoed, tot 1000 km. adsb.lol is gratis en sneller, maar gaat tot 450 km."}
+            : "Met tegoed, tot 3000 km of de hele wereld. adsb.lol is gratis en sneller, maar gaat tot 450 km."}
         </p>
       </section>
 
@@ -371,7 +403,8 @@ const StatusPanel = ({
       </section>
 
       {/* de meest verdachte vliegtuigen, klik om erheen te gaan. de lijst scrollt zelf */}
-      <section className="min-h-[12rem] flex-1 overflow-y-auto pr-1">
+      {/* OUD: <section className="min-h-[12rem] flex-1 overflow-y-auto pr-1"> */}
+      <section className="radar-scroll min-h-[12rem] flex-1 overflow-y-auto pr-1">
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Meest verdacht</h2>
         {verdachtst.length === 0 ? (
           <p className="text-sm text-slate-500">Nu niets opvallends.</p>

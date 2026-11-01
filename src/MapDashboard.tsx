@@ -16,7 +16,8 @@ import { GEEN_BEOORDELING, type Beoordeling, type Niveau } from "./dreiging";
 import type { Punt } from "./App";
 // OUD: import type { Bron } from "./verversen";
 // OUD: import { ADSB_MAX_KM, type Bron } from "./verversen";
-import { ADSB_MAX_KM, type Bron, type Vlucht } from "./verversen";
+// OUD: import { ADSB_MAX_KM, type Bron, type Vlucht } from "./verversen";
+import { ADSB_MAX_KM, MAX_KM, type Bron, type Vlucht } from "./verversen";
 
 type Props = {
   // OUD: planes: any[]; //! array van vliegtuig data
@@ -31,6 +32,7 @@ type Props = {
   onKies: (id: string | null) => void; //! klik op de kaart: een vliegtuig, of een lege plek / Esc (null)
   midden: Punt; //! middelpunt van het bekeken gebied
   straal: number; //! straal in km
+  wereld: boolean; //! "Hele wereld": geen cirkel, de kaart laat de hele aarde zien
   onKaartMidden: (punt: Punt) => void; //! het midden van de kaart, voor de knop in het paneel
   onMiddenGesleept: (punt: Punt) => void; //! de bereikcirkel is naar een nieuw midden gesleept
   onStraalGesleept: (km: number) => void; //! de rand van de cirkel is naar een nieuwe straal gesleept
@@ -142,30 +144,50 @@ const PopupKlaar = ({ popupRef, id, gepand }: { popupRef: RefObject<L.Popup | nu
 // OUD: const VolgGebied = ({ midden, straal, gesleept }: { midden: Punt; straal: number; gesleept: RefObject<Punt | null> }) => {
 //! ook een straal die je zelf aan de rand hebt gesleept slaan we over (K5). die ref wordt na gebruik leeg gemaakt, anders zou de schuif
 //! later op dezelfde waarde de kaart niet meer laten zoomen
+//! de hele wereld: de kaart zoomt uit tot de aarde in beeld is (rond de lengte van het midden), en terug naar de cirkel als hij uitgaat
 const VolgGebied = ({
   midden,
   straal,
+  wereld,
   gesleept,
   gesleeptStraal,
 }: {
   midden: Punt;
   straal: number;
+  wereld: boolean;
   gesleept: RefObject<Punt | null>;
   gesleeptStraal: MutableRefObject<number | null>;
 }) => {
   const map = useMap();
-  const staatOp = useRef({ midden, straal });
+  // OUD: const staatOp = useRef({ midden, straal });
+  const staatOp = useRef({ midden, straal, wereld });
   useEffect(() => {
-    if (staatOp.current.midden === midden && staatOp.current.straal === straal) return;
+    // OUD: if (staatOp.current.midden === midden && staatOp.current.straal === straal) return;
+    if (staatOp.current.midden === midden && staatOp.current.straal === straal && staatOp.current.wereld === wereld) return;
+    if (wereld) {
+      staatOp.current = { midden, straal, wereld };
+      map.flyToBounds(
+        [
+          [-55, midden[1] - 180],
+          [72, midden[1] + 180],
+        ],
+        { duration: 0.6 },
+      );
+      return;
+    }
+    const wasWereld = staatOp.current.wereld;
     // OUD: const zelfGesleept = midden === gesleept.current && staatOp.current.straal === straal;
     const zelfGesleept =
       (midden === gesleept.current && staatOp.current.straal === straal) ||
       (straal === gesleeptStraal.current && staatOp.current.midden === midden);
     gesleeptStraal.current = null;
-    staatOp.current = { midden, straal };
-    if (zelfGesleept) return;
+    // OUD: staatOp.current = { midden, straal };
+    // OUD: if (zelfGesleept) return;
+    staatOp.current = { midden, straal, wereld };
+    if (zelfGesleept && !wasWereld) return;
     map.flyToBounds(vakVan(midden, straal), { padding: [MARGE, MARGE], duration: 0.6 });
-  }, [midden, straal]);
+  // OUD: }, [midden, straal]);
+  }, [midden, straal, wereld]);
   return null;
 };
 
@@ -196,6 +218,7 @@ const Kaart = ({
   onKies,
   midden,
   straal,
+  wereld,
   onKaartMidden,
   onMiddenGesleept,
   onStraalGesleept,
@@ -284,14 +307,17 @@ const Kaart = ({
       {/* OUD: <Circle center={midden} radius={straal * 1000}
           pathOptions={{ color: "#34d399", weight: 1, opacity: 0.6, fillColor: "#34d399", fillOpacity: 0.03, dashArray: "6 6", interactive: false }} />
           (nu GebiedCirkel: zelfde stijl, plus verslepen met een dubbelklik op de rand) */}
-      <GebiedCirkel
-        midden={midden}
-        straal={straal}
-        onVerplaatst={opGesleept}
-        onVoorlopig={(gebied) => laagRef.current?.zetVoorlopigGebied(gebied)}
-        onStraal={opStraalGesleept}
-        maxKm={bron === "adsblol" ? ADSB_MAX_KM : 1000}
-      />
+      {/* OUD: maxKm={bron === "adsblol" ? ADSB_MAX_KM : 1000}. bij de hele wereld is er geen cirkel */}
+      {!wereld && (
+        <GebiedCirkel
+          midden={midden}
+          straal={straal}
+          onVerplaatst={opGesleept}
+          onVoorlopig={(gebied) => laagRef.current?.zetVoorlopigGebied(gebied)}
+          onStraal={opStraalGesleept}
+          maxKm={bron === "adsblol" ? ADSB_MAX_KM : MAX_KM}
+        />
+      )}
 
       {/* OUD: één marker (DOM-element + React-component + popup) per vliegtuig. vervangen door de canvaslaag hieronder
       {planes.map((p) => {
@@ -366,7 +392,8 @@ const Kaart = ({
       <NaarGekozen plane={vliegPlane} positieVan={positieVan} />
       {/* OUD: <VolgGebied midden={midden} straal={straal} /> */}
       {/* OUD: <VolgGebied midden={midden} straal={straal} gesleept={gesleeptRef} /> */}
-      <VolgGebied midden={midden} straal={straal} gesleept={gesleeptRef} gesleeptStraal={gesleeptStraalRef} />
+      {/* OUD: <VolgGebied midden={midden} straal={straal} gesleept={gesleeptRef} gesleeptStraal={gesleeptStraalRef} /> */}
+      <VolgGebied midden={midden} straal={straal} wereld={wereld} gesleept={gesleeptRef} gesleeptStraal={gesleeptStraalRef} />
       <MeldMidden onKaartMidden={onKaartMidden} />
     </MapContainer>
   );

@@ -92,6 +92,38 @@ body {
   }
 }
 
+/* scrollbalk van het zijpaneel en de lijst "Meest verdacht" (StatusPanel.tsx): smal en donker, groen als je hem pakt.
+   de ::-webkit-regels voor chrome, edge en safari, scrollbar-color voor firefox. alleen waar ::-webkit-scrollbar niet bestaat:
+   chrome 121+ kent beide, en met scrollbar-color negeert hij de ::-webkit-regels (dan geen groen bij het pakken) */
+@supports not selector(::-webkit-scrollbar) {
+  .radar-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: #334155 transparent; /* slate-700 op het paneel */
+  }
+}
+
+.radar-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.radar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.radar-scroll::-webkit-scrollbar-thumb {
+  background: #334155;
+  border: 2px solid #020617; /* slate-950, zo lijkt de balk smaller dan het vak */
+  border-radius: 9999px;
+}
+
+.radar-scroll::-webkit-scrollbar-thumb:hover {
+  background: #475569; /* slate-600 */
+}
+
+.radar-scroll::-webkit-scrollbar-thumb:active {
+  background: #34d399; /* het groen van de radar */
+}
+
 /* het live-lampje */
 .live {
   animation: knipper 2s ease-in-out infinite;
